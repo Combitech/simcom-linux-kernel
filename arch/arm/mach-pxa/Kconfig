@@ -525,6 +525,27 @@ config MACH_XCEP
 	  PXA255 based Single Board Computer with SMC 91C111 ethernet chip and 64 MB of flash.
 	  Tuned for usage in Libera instruments for particle accelerators.
 
+config MACH_SIMCOM
+	bool "Combitech SimCom Support"
+	select PXA27x
+	select IWMMXT
+	select PXA_SSP
+
+choice
+	prompt "SimCom Baseboards"
+	depends on MACH_SIMCOM
+
+config SIMCOM_BB_NONE
+	bool "No baseboard support"
+
+config SIMCOM_BB_DEV
+	bool "Development baseboard"
+
+config SIMCOM_BB_PORTABLE
+	bool "Portable baseboard"
+
+endchoice
+	
 endmenu
 
 config PXA25x

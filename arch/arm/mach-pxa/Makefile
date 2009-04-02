@@ -100,3 +100,4 @@ obj-$(CONFIG_MACH_ARMCORE) += cm-x2xx-pci.o
 endif
 
 obj-$(CONFIG_TOSA_BT)		+= tosa-bt.o
+obj-$(CONFIG_MACH_SIMCOM)	+= simcom.o
