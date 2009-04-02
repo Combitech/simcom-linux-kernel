@@ -28,13 +28,12 @@
 #include <asm/mach-types.h>
 #include <asm/mach/map.h>
 
-#include <asm/arch/pxa-regs.h>
-#include <asm/arch/pxa2xx-regs.h>
-#include <asm/arch/pxa2xx-gpio.h>
-#include <asm/arch/pxafb.h>
-#include <asm/arch/ohci.h>
-#include <asm/arch/mmc.h>
-#include <asm/arch/bitfield.h>
+#include <mach/pxa2xx-regs.h>
+#include <mach/mfp-pxa27x.h>
+#include <mach/pxafb.h>
+#include <mach/ohci.h>
+#include <mach/mmc.h>
+#include <mach/bitfield.h>
 
 #include "generic.h"
 
@@ -48,22 +47,119 @@
 #define NOR_PHYS_BASE		(PXA_CS0_PHYS)
 #define NAND_PHYS_BASE		(PXA_CS1_PHYS)
 
-static struct mtd_partition simcom_partitions[] = {
+
+
+static unsigned long simcom_pin_config[] = {
+
+	/* BTUART */
+	GPIO42_BTUART_RXD,
+	GPIO43_BTUART_TXD,
+	GPIO44_BTUART_CTS,
+	GPIO45_BTUART_RTS,
+
+	/* STUART */
+	GPIO46_STUART_RXD,
+	GPIO47_STUART_TXD,
+
+	/* LCD */
+	GPIO58_LCD_LDD_0,
+	GPIO59_LCD_LDD_1,
+	GPIO60_LCD_LDD_2,
+	GPIO61_LCD_LDD_3,
+	GPIO62_LCD_LDD_4,
+	GPIO63_LCD_LDD_5,
+	GPIO64_LCD_LDD_6,
+	GPIO65_LCD_LDD_7,
+	GPIO66_LCD_LDD_8,
+	GPIO67_LCD_LDD_9,
+	GPIO68_LCD_LDD_10,
+	GPIO69_LCD_LDD_11,
+	GPIO70_LCD_LDD_12,
+	GPIO71_LCD_LDD_13,
+	GPIO72_LCD_LDD_14,
+	GPIO73_LCD_LDD_15,
+	GPIO74_LCD_FCLK,
+	GPIO75_LCD_LCLK,
+	GPIO76_LCD_PCLK,
+	GPIO77_LCD_BIAS,
+
+	/* I2C */
+	GPIO117_I2C_SCL,
+	GPIO118_I2C_SDA,
+
+	/* SSP1 */
+	GPIO23_SSP1_SCLK,
+	GPIO24_SSP1_SFRM,
+	GPIO25_SSP1_TXD,
+	GPIO26_SSP1_RXD,
+
+	/* SSP2 */
+	GPIO19_SSP2_SCLK,
+	GPIO14_SSP2_SFRM,
+	GPIO87_SSP2_TXD,
+	GPIO88_SSP2_RXD,
+
+	/* SDRAM and local bus */
+	GPIO15_nCS_1,
+	GPIO78_nCS_2,
+	GPIO79_nCS_3,
+	GPIO80_nCS_4,
+	GPIO33_nCS_5,
+	GPIO48_nPOE,
+	GPIO49_nPWE,
+	GPIO18_RDY,
+
+	/* DM9000 */
+	GPIO21_nSDCS_3,
+
+};
+
+
+/* NAND FLASH */
+#if defined(CONFIG_MTD_NAND_SIMCOM)
+
+static struct mtd_partition simcom_nand_partitions[] = {
 	{
 		.name		= "simcom",
 		.offset		= 0,
-		.size		= SZ_16M,
-		.mask_flags	= MTD_WRITEABLE, /* force read-only */
+		.size		= SZ_128M,
+		.mask_flags	= MTD_WRITEABLE,
 	},
 };
 
-static struct physmap_flash_data simcom_flash_data = {
+static struct physmap_flash_data simcom_nand_data = {
 	.width		= 4,
-	.parts		= simcom_partitions,
-	.nr_parts	= ARRAY_SIZE(simcom_partitions),
+	.parts		= simcom_nand_partitions,
+	.nr_parts	= ARRAY_SIZE(simcom_nand_partitions),
 };
 
-static struct resource simcom_dm9k_resource[] = {
+static struct resource simcom_nand_resource = {
+	.start		= NAND_PHYS_BASE,
+	.end		= NAND_PHYS_BASE + SZ_128M - 1,
+	.flags		= IORESOURCE_MEM,
+};
+
+static struct platform_device simcom_nand_device = {
+	.name		= "simcom-nand",
+	.id		= 0,
+	.dev		= {
+		.platform_data	= &simcom_nand_data,
+	},
+	.num_resources	= 1,
+	.resource	= &simcom_nand_resource,
+};
+static void __init simcom_init_nand(void)
+{
+	platform_device_register(&simcom_nand_device);
+}
+#else
+static inline void simcom_init_nand(void) {}
+#endif //NAND
+
+
+/* DM9000 Ethernet */
+#if defined(CONFIG_DM9000) || defined(CONFIG_DM9000_MODULE)
+static struct resource simcom_dm9000_resource[] = {
 	[0] = {
 		.start = DM9000_PHYS_BASE,
 		.end   = DM9000_PHYS_BASE + 3,
@@ -81,48 +177,40 @@ static struct resource simcom_dm9k_resource[] = {
 	}
 };
 
-/* Ethernet device */
-static struct platform_device simcom_device_dm9k = {
+static struct platform_device simcom_dm9000_device = {
 	.name		= "dm9000",
 	.id		= -1,
-	.num_resources	= ARRAY_SIZE(simcom_dm9k_resource),
-	.resource	= simcom_dm9k_resource,
+	.num_resources	= ARRAY_SIZE(simcom_dm9000_resource),
+	.resource	= simcom_dm9000_resource,
 };
 
+static void __init simcom_init_dm9000(void)
+{
+	platform_device_register(&simcom_dm9000_device);
+}
+#else
+static inline void simcom_init_dm9000(void) {}
+#endif //DM9000
 
-static struct resource simcom_flash_resource = {
-	.start		= NAND_PHYS_BASE,
-	.end		= NAND_PHYS_BASE + SZ_16M - 1,
-	.flags		= IORESOURCE_MEM,
+
+/* USB OHCI controller */
+#if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
+static struct pxaohci_platform_data simcom_ohci_platform_data = {
+	.port_mode	= PMM_PERPORT_MODE,
+	.flags		= ENABLE_PORT1 | ENABLE_PORT2 | POWER_CONTROL_LOW,
 };
 
-static struct platform_device simcom_flash_device = {
-	.name		= "simcom-flash",
-	.id		= 0,
-	.dev		= {
-		.platform_data	= &simcom_flash_data,
-	},
-	.num_resources	= 1,
-	.resource	= &simcom_flash_resource,
-};
+static void __init simcom_init_ohci(void)
+{
+	pxa_set_ohci_info(&simcom_ohci_platform_data);
+}
+#else
+static inline void simcom_init_ohci(void) {}
+#endif // USB
 
 
-
-/* audio device */
-static struct platform_device simcom_audio_device = {
-	.name		= "pxa2xx-ac97",
-	.id		= -1,
-};
-
-
-/* platform devices */
-static struct platform_device *platform_devices[] __initdata = {
-	&simcom_device_dm9k,
-	&simcom_audio_device,
-	&simcom_flash_device,
-};
-
-
+/* PXA Frame Buffer */
+#if defined(CONFIG_FB_PXA) || defined(CONFIG_FB_PXA_MODULE)
 static struct pxafb_mode_info generic_crt_800x600_mode = {
 	.pixclock	= 28846,
 	.bpp		= 8,
@@ -201,21 +289,14 @@ static struct pxafb_mach_info generic_tft_640x480 = {
 	.cmap_static	= 0,
 };
 
-static struct pxafb_mach_info *simcom_display = &generic_tft_640x480;//&generic_crt_800x600;
-
-static int simcom_ohci_init(struct device *dev)
+static struct pxafb_mach_info *simcom_display = &generic_crt_800x600;
+static void __init simcom_init_display(void)
 {
-	/* Set the Power Control Polarity Low */
-	UHCHR = (UHCHR | UHCHR_PCPL) &
-		~(UHCHR_SSEP1 | UHCHR_SSEP2 | UHCHR_SSE);
-
-	return 0;
+	set_pxa_fb_info(simcom_display);
 }
-
-static struct pxaohci_platform_data simcom_ohci_platform_data = {
-	.port_mode	= PMM_PERPORT_MODE,
-	.init		= simcom_ohci_init,
-};
+#else
+static inline void simcom_init_display(void) {}
+#endif // PXAFB
 
 
 static void __init simcom_init(void)
@@ -223,38 +304,17 @@ static void __init simcom_init(void)
 	set_pxa_fb_info(simcom_display);
 
 	/* Register SimCom platform devices */
-	platform_add_devices(platform_devices, ARRAY_SIZE(platform_devices));
+	simcom_init_nand();
+	simcom_init_dm9000();
+	simcom_init_ohci();
+	simcom_init_display();
 
-	pxa_set_ohci_info(&simcom_ohci_platform_data);
-
-	/* Enables the STUART */
-	pxa_gpio_mode(GPIO46_STRXD_MD);
-	pxa_gpio_mode(GPIO47_STTXD_MD);
-
-	/* Enables the BTUART  */
-	pxa_gpio_mode(GPIO42_BTRXD_MD);
-	pxa_gpio_mode(GPIO43_BTTXD_MD);
-	pxa_gpio_mode(GPIO44_BTCTS_MD);
-	pxa_gpio_mode(GPIO45_BTRTS_MD);
-
-	/* Enables the DM9000 */
-	pxa_gpio_mode(GPIO78_nCS_2_MD);
-	pxa_gpio_mode(21 | GPIO_OUT);
-
-	/* Enables the NAND */
-	pxa_gpio_mode(GPIO15_nCS_1_MD);
-	pxa_gpio_mode(GPIO49_nPWE_MD);
-	pxa_gpio_mode(GPIO48_nPOE_MD);
-	pxa_gpio_mode(GPIO18_RDY_MD);
+	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }
 
 static void __init simcom_init_irq(void)
 {
 	pxa27x_init_irq();
-
-	/* Setup interrupt for dm9000 */
-	pxa_gpio_mode(IRQ_TO_GPIO(SIMCOM_ETHIRQ));
-	set_irq_type(SIMCOM_ETHIRQ, IRQT_RISING);
 }
 
 static void __init simcom_map_io(void)
