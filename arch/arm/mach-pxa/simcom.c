@@ -120,10 +120,10 @@ static unsigned long simcom_pin_config[] = {
 
 static struct mtd_partition simcom_nand_partitions[] = {
 	{
-		.name		= "simcom",
+		.name		= "rootfs",
 		.offset		= 0,
-		.size		= SZ_128M,
-		.mask_flags	= MTD_WRITEABLE,
+		.size		= MTDPART_SIZ_FULL,//SZ_128M,
+		//.mask_flags	= MTD_WRITEABLE,
 	},
 };
 
@@ -301,9 +301,6 @@ static inline void simcom_init_display(void) {}
 
 static void __init simcom_init(void)
 {
-	set_pxa_fb_info(simcom_display);
-
-	/* Register SimCom platform devices */
 	simcom_init_nand();
 	simcom_init_dm9000();
 	simcom_init_ohci();

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2008 Combitech AB.
  *  David Kiland <david.kiland@combitech.se>
- *
+ *	Tobias Knutsson <tobias.knutsson@combitech.se>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,13 +15,15 @@
  */
 
 #include <linux/mtd/nand.h>
+#include <linux/mtd/physmap.h>
 #include <linux/mtd/partitions.h>
+#include <linux/platform_device.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
 
-#include <asm/arch/hardware.h>
-#include <asm/arch/pxa-regs.h>
+#include <mach/hardware.h>
+#include <mach/pxa2xx-regs.h>
 
 #define	MASK_ALE	(1 << 21)	/* our ALE is AD21 */
 #define	MASK_CLE	(1 << 20)	/* our CLE is AD20 */
@@ -29,24 +31,21 @@
 /* MTD structure for Simcom board */
 static struct mtd_info *simcom_nand_mtd;
 
-/* remaped IO address of the device */
+/* Re-mapped IO address of the device */
 static void __iomem *simcom_nand_io;
 
-/*
- * Define static partitions for flash device
- */
+
+/* Fall-back partition table */
 static struct mtd_partition partition_info[] = {
 	[0] = {
-		.name	= "simcom-0",
+		.name	= "default",
 		.offset	= 0,
 		.size	= MTDPART_SIZ_FULL
 	}
 };
 
+/* Low-level driver */
 
-/*
- *	hardware specific access to control-lines
- */
 static void simcom_hwcontrol(struct mtd_info *mtd, int dat, unsigned int ctrl)
 {
        struct nand_chip* this = mtd->priv;
@@ -73,18 +72,18 @@ static void simcom_hwcontrol(struct mtd_info *mtd, int dat, unsigned int ctrl)
 }
 
 
-/*
- * Main initialization routine	this->chip_delay = 100;
- */
-static int simcom_init(void)
+/* Platform driver */
+
+static int simcom_nand_probe(struct platform_device *pdev)
 {
 	struct nand_chip *this;
 	const char *part_type;
-	struct mtd_partition *mtd_parts;
-	int mtd_parts_nb = 0;
+	struct physmap_flash_data *mtd_data = (struct physmap_flash_data*)pdev->dev.platform_data;
+	struct mtd_partition *mtd_parts = mtd_data->parts;
+	int mtd_parts_nb = mtd_data->nr_parts;
 	int ret;
 
-	printk("Loading  simcom flash driver\n");
+	printk("Probing SimCom NAND Flash..\n");
 	/* Allocate memory for MTD device structure and private data */
 	simcom_nand_mtd = kzalloc(sizeof(struct mtd_info) +
 				  sizeof(struct nand_chip),
@@ -118,7 +117,7 @@ static int simcom_init(void)
 	this->cmd_ctrl = simcom_hwcontrol;
 	this->dev_ready = NULL;
 
-	/* 20 us command delay time */
+	/* 25 us command delay time */
 	this->chip_delay = 25;
 	this->ecc.mode = NAND_ECC_SOFT;
 
@@ -133,10 +132,10 @@ static int simcom_init(void)
 		mtd_parts = partition_info;
 		mtd_parts_nb = 1;
 		part_type = "static";
+		printk(KERN_NOTICE "Using %s partition definition\n", part_type);
 	}
 
 	/* Register the partitions */
-	printk(KERN_NOTICE "Using %s partition definition\n", part_type);
 	ret = add_mtd_partitions(simcom_nand_mtd, mtd_parts, mtd_parts_nb);
 	if (ret)
 		goto err2;
@@ -152,22 +151,43 @@ err1:
 	return ret;
 
 }
-module_init(simcom_init);
 
-/*
- * Clean up routine
- */
-static void simcom_cleanup(void)
+static int simcom_nand_remove(struct platform_device *pdev)
 {
 	/* Release resources, unregister device */
 	nand_release(simcom_nand_mtd);
-
 	iounmap(simcom_nand_io);
 
 	/* Free the MTD device structure */
 	kfree (simcom_nand_mtd);
+
+	return 0;
 }
-module_exit(simcom_cleanup);
+
+static struct platform_driver simcom_nand_driver = {
+	.probe		= simcom_nand_probe,
+	.remove		= simcom_nand_remove,
+	.driver		= {
+		.name	= "simcom-nand",
+		.owner	= THIS_MODULE,
+	},
+};
+
+
+/* Module interface */
+
+static int __init simcom_nand_init(void)
+{
+	return platform_driver_register(&simcom_nand_driver);
+}
+module_init(simcom_nand_init);
+
+static void __exit simcom_nand_exit(void)
+{
+	platform_driver_unregister(&simcom_nand_driver);
+}
+module_exit(simcom_nand_exit);
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("David Kiland <david.kiland@combitech.se>");
