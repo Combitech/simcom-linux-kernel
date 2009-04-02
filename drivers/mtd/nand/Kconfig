@@ -482,4 +482,10 @@ config MTD_NAND_W90P910
 	  This enables the driver for the NAND Flash on evaluation board based
 	  on w90p910.
 
+config MTD_NAND_SIMCOM
+	tristate "Support for NAND on SimCom"
+	depends on MTD_NAND && MACH_SIMCOM
+	help
+	  Enables support for the NAND FLASH on the SimCom module.
+
 endif # MTD_NAND
