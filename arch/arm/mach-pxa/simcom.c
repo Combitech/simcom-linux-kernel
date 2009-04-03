@@ -1,7 +1,7 @@
 /*
  * linux/arch/arm/mach-pxa/simcom.c
  *
- * Copyright (C) 200 Combitech AB
+ * Copyright (C) 2009 Combitech AB
  * David Kiland <david.kiland(at)combitech.se>
  * Tobias Knutsson <tobias.knutsson(at)combitech.se>
  *
@@ -36,6 +36,7 @@
 #include <mach/bitfield.h>
 
 #include "generic.h"
+#include "devices.h"
 
 /* SimCom device physical addresses */
 #define SIMCOM_CS1_PHYS		(PXA_CS1_PHYS)
@@ -289,7 +290,7 @@ static struct pxafb_mach_info generic_tft_640x480 = {
 	.cmap_static	= 0,
 };
 
-static struct pxafb_mach_info *simcom_display = &generic_crt_800x600;
+static struct pxafb_mach_info *simcom_display = &generic_tft_640x480;//&generic_crt_800x600;
 static void __init simcom_init_display(void)
 {
 	set_pxa_fb_info(simcom_display);
@@ -305,6 +306,7 @@ static void __init simcom_init(void)
 	simcom_init_dm9000();
 	simcom_init_ohci();
 	simcom_init_display();
+	platform_device_register(&pxa_device_i2c);
 
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }

@@ -144,3 +144,13 @@ config SND_PXA2XX_SOC_IMOTE2
        help
          Say Y if you want to add support for SoC audio on the
 	 IMote 2.
+
+config SND_PXA2XX_SOC_SIMCOM
+	tristate "SoC Audio support for SimCom"
+	depends on SND_PXA2XX_SOC && MACH_SIMCOM && SIMCOM_BB_DEV
+	select SND_PXA2XX_SOC_I2S
+	select SND_SOC_TLV320AIC3X
+	help
+	  Say Y if you want to add support for SoC audio on
+	  SimCom.
+

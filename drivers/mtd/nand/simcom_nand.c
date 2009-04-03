@@ -44,14 +44,14 @@ static struct mtd_partition partition_info[] = {
 	}
 };
 
+
+
 /* Low-level driver */
 
 static void simcom_hwcontrol(struct mtd_info *mtd, int dat, unsigned int ctrl)
 {
        struct nand_chip* this = mtd->priv;
        unsigned int nandaddr = (unsigned int)this->IO_ADDR_W;
-
-
 
        if (ctrl & NAND_CTRL_CHANGE) {
                nandaddr &= ~(MASK_ALE|MASK_CLE);
@@ -77,32 +77,29 @@ static void simcom_hwcontrol(struct mtd_info *mtd, int dat, unsigned int ctrl)
 static int simcom_nand_probe(struct platform_device *pdev)
 {
 	struct nand_chip *this;
-	const char *part_type;
 	struct physmap_flash_data *mtd_data = (struct physmap_flash_data*)pdev->dev.platform_data;
 	struct mtd_partition *mtd_parts = mtd_data->parts;
 	int mtd_parts_nb = mtd_data->nr_parts;
 	int ret;
 
-	printk("Probing SimCom NAND Flash..\n");
+	dev_info(&pdev->dev, "Probing flash..\n");
 	/* Allocate memory for MTD device structure and private data */
 	simcom_nand_mtd = kzalloc(sizeof(struct mtd_info) +
 				  sizeof(struct nand_chip),
 				  GFP_KERNEL);
 	if (!simcom_nand_mtd) {
-		printk("Unable to allocate SimCom NAND MTD device structure.\n");
+		dev_err(&pdev->dev, "Unable to allocate SimCom NAND MTD device structure.\n");
 		return -ENOMEM;
 	}
-
 
 	// Address register will be at MASK_ALE, and 4 bytes long.
 	//simcom_nand_io = ioremap(PXA_CS1_PHYS | (MASK_CLE-1), 12);
 	simcom_nand_io = ioremap(PXA_CS1_PHYS, 0x01000000);
 	if (!simcom_nand_io) {
-		printk("Unable to ioremap NAND device\n");
+		dev_err(&pdev->dev, "Unable to ioremap NAND device\n");
 		ret = -EINVAL;
 		goto err1;
 	}
-
 
 	/* Get pointer to private data */
 	this = (struct nand_chip *)(&simcom_nand_mtd[1]);
@@ -123,7 +120,7 @@ static int simcom_nand_probe(struct platform_device *pdev)
 
 	/* Scan to find existence of the device */
 	if (nand_scan (simcom_nand_mtd, 1)) {
-		printk(KERN_NOTICE "No NAND device\n");
+		dev_err(&pdev->dev, "No NAND device found\n");
 		ret = -ENXIO;
 		goto err2;
 	}
@@ -131,8 +128,7 @@ static int simcom_nand_probe(struct platform_device *pdev)
 	if (!mtd_parts_nb) {
 		mtd_parts = partition_info;
 		mtd_parts_nb = 1;
-		part_type = "static";
-		printk(KERN_NOTICE "Using %s partition definition\n", part_type);
+		dev_info(&pdev->dev, "Using default partition definition\n");
 	}
 
 	/* Register the partitions */
