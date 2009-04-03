@@ -33,6 +33,7 @@
 #include <mach/pxafb.h>
 #include <mach/ohci.h>
 #include <mach/mmc.h>
+#include <mach/i2c.h>
 #include <mach/bitfield.h>
 
 #include "generic.h"
@@ -299,6 +300,26 @@ static void __init simcom_init_display(void)
 static inline void simcom_init_display(void) {}
 #endif // PXAFB
 
+/* Development baseboard */
+#if defined(CONFIG_SIMCOM_BB_DEV)
+static struct i2c_board_info simcom_bb_dev_i2c_info[] = {
+	{
+		I2C_BOARD_INFO("pca9546a", 0x70),
+	},
+};
+
+static void __init simcom_init_baseboard(void)
+{
+	printk("bbinit\n");
+	pxa_set_i2c_info(NULL);
+	printk("bbinit\n");
+	i2c_register_board_info(0, ARRAY_AND_SIZE(simcom_bb_dev_i2c_info));
+	printk("bbinit\n");
+}
+#else
+static inline void simcom_init_baseboard(void) {}
+#endif // DEV BB
+
 
 static void __init simcom_init(void)
 {
@@ -306,7 +327,7 @@ static void __init simcom_init(void)
 	simcom_init_dm9000();
 	simcom_init_ohci();
 	simcom_init_display();
-	platform_device_register(&pxa_device_i2c);
+	simcom_init_baseboard();
 
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }

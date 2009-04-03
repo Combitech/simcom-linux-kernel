@@ -26,4 +26,11 @@ config SENSORS_TSL2550
 	  This driver can also be built as a module.  If so, the module
 	  will be called tsl2550.
 
+config SENSORS_PCA9546A
+	tristate "NXP PCA9546A 4-channel I2C-switch"
+	depends on EXPERIMENTAL
+	help
+	  If you say yes here you get support for the NXP PCA9564A
+	  4-channel I2C-switch.
+	  
 endmenu
