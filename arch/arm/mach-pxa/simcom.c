@@ -23,6 +23,7 @@
 #include <linux/mtd/physmap.h>
 
 #include <linux/dm9000.h>
+#include <linux/i2c/pca953x.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -88,6 +89,13 @@ static unsigned long simcom_pin_config[] = {
 	/* I2C */
 	GPIO117_I2C_SCL,
 	GPIO118_I2C_SDA,
+
+	/* I2S */
+	GPIO28_I2S_BITCLK_OUT,
+	GPIO29_I2S_SDATA_IN,
+	GPIO30_I2S_SDATA_OUT,
+	GPIO31_I2S_SYNC,
+	GPIO113_I2S_SYSCLK,
 
 	/* SSP1 */
 	GPIO23_SSP1_SCLK,
@@ -302,19 +310,24 @@ static inline void simcom_init_display(void) {}
 
 /* Development baseboard */
 #if defined(CONFIG_SIMCOM_BB_DEV)
+static struct pca953x_platform_data gpio_exp = {
+		.gpio_base	= 128,
+		.invert = 0,
+};
 static struct i2c_board_info simcom_bb_dev_i2c_info[] = {
-	{
+	{	/* I2C Switch */
 		I2C_BOARD_INFO("pca9546a", 0x70),
+	},
+	{	/* GPIO Expander */
+		I2C_BOARD_INFO("pca9539", 0x74),
+		.platform_data = &gpio_exp,
 	},
 };
 
 static void __init simcom_init_baseboard(void)
 {
-	printk("bbinit\n");
 	pxa_set_i2c_info(NULL);
-	printk("bbinit\n");
 	i2c_register_board_info(0, ARRAY_AND_SIZE(simcom_bb_dev_i2c_info));
-	printk("bbinit\n");
 }
 #else
 static inline void simcom_init_baseboard(void) {}

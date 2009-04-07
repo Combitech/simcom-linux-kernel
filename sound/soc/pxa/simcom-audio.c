@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/device.h>
+#include <linux/clk.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -25,6 +26,41 @@
 #include "pxa2xx-pcm.h"
 #include "pxa2xx-i2s.h"
 
+#define AUDIO_FORMAT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CBS_CFS | \
+					  SND_SOC_DAIFMT_NB_NF )
+
+static int simcom_hw_params(struct snd_pcm_substream *substream,
+			 struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+	struct clk *clk_i2s;
+	int ret;
+
+	/* set codec DAI configuration */
+	ret = snd_soc_dai_set_fmt(codec_dai, AUDIO_FORMAT);
+	if (ret < 0)
+		return ret;
+
+	/* set cpu DAI configuration */
+	ret = snd_soc_dai_set_fmt(cpu_dai, AUDIO_FORMAT);
+	if (ret < 0)
+		return ret;
+
+	/* set the codec system clock */
+	clk_i2s = clk_get(cpu_dai->dev, "I2SCLK");
+	if(!clk_i2s)
+			return -ENODEV;
+	ret = snd_soc_dai_set_sysclk(codec_dai, 0, clk_get_rate(clk_i2s), SND_SOC_CLOCK_OUT);
+
+	return ret;
+}
+
+static struct snd_soc_ops simcom_dai_ops = {
+	.hw_params = simcom_hw_params,
+};
+
 struct aic3x_setup_data aic3x_data = {
 	.i2c_bus = 0,
 	.i2c_address = 0x18,
@@ -36,10 +72,11 @@ static struct snd_soc_dai_link simcom_dai = {
 		.stream_name = "I2S",
 		.cpu_dai = &pxa_i2s_dai,
 		.codec_dai = &aic3x_dai,
+		.ops = &simcom_dai_ops,
 };
 
 static struct snd_soc_card simcom_audio = {
-	.name = "I2S",
+	.name = "Development Baseboard Audio",
 	.platform = &pxa2xx_soc_platform,
 	.dai_link = &simcom_dai,
 	.num_links = 1,
