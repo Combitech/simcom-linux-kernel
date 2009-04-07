@@ -17,14 +17,13 @@
 
 #define PCA9546A_CONF 	0
 
+int pca9546a_conf_cache;
+
 /* following are the sysfs callback functions */
 static ssize_t pca9546a_show(struct device *dev, struct device_attribute *attr,
 			    char *buf)
 {
-	struct sensor_device_attribute *psa = to_sensor_dev_attr(attr);
-	struct i2c_client *client = to_i2c_client(dev);
-	return sprintf(buf, "%d\n", i2c_smbus_read_byte_data(client,
-							     psa->index));
+	return sprintf(buf, "%d\n", pca9546a_conf_cache);
 }
 
 static ssize_t pca9546a_store(struct device *dev, struct device_attribute *attr,
@@ -36,6 +35,7 @@ static ssize_t pca9546a_store(struct device *dev, struct device_attribute *attr,
 	if (val > 0xff)
 		return -EINVAL;
 	i2c_smbus_write_byte_data(client, psa->index, val);
+	pca9546a_conf_cache = val;
 	return count;
 }
 
@@ -57,19 +57,22 @@ static struct attribute_group pca9546a_defattr_group = {
 static int pca9546a_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
-	int conf;
+	int ret;
+
+	/* Register sysfs hooks */
+	ret = sysfs_create_group(&client->dev.kobj,
+				  &pca9546a_defattr_group);
 
 	/* Enable first channel by default */
 	i2c_smbus_write_byte_data(client, PCA9546A_CONF, 1);
-	conf = i2c_smbus_read_byte_data(client, PCA9546A_CONF);
-	dev_info(&client->dev, "switch state: 0:%s 1:%s 2:%s 3:%s\n", \
-							conf & (1<<0)? "on": "off", \
-							conf & (1<<1)? "on": "off", \
-							conf & (1<<2)? "on": "off", \
-							conf & (1<<3)? "on": "off");
-	/* Register sysfs hooks */
-	return sysfs_create_group(&client->dev.kobj,
-				  &pca9546a_defattr_group);
+	pca9546a_conf_cache = 1;
+	dev_info(&client->dev, "switch state: ch0:%s ch1:%s ch2:%s ch3:%s\n", \
+					pca9546a_conf_cache & (1<<0)? "on": "off", \
+					pca9546a_conf_cache & (1<<1)? "on": "off", \
+					pca9546a_conf_cache & (1<<2)? "on": "off", \
+					pca9546a_conf_cache & (1<<3)? "on": "off");
+
+	return ret;
 }
 
 static int pca9546a_remove(struct i2c_client *client)
