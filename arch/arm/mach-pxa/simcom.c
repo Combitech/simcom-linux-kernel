@@ -1,6 +1,8 @@
 /*
  * linux/arch/arm/mach-pxa/simcom.c
  *
+ * Combitech SimCoM Module support, based on cm-x2xx.c
+ *
  * Copyright (C) 2009 Combitech AB
  * David Kiland <david.kiland(at)combitech.se>
  * Tobias Knutsson <tobias.knutsson(at)combitech.se>
@@ -132,8 +134,7 @@ static struct mtd_partition simcom_nand_partitions[] = {
 	{
 		.name		= "rootfs",
 		.offset		= 0,
-		.size		= MTDPART_SIZ_FULL,//SZ_128M,
-		//.mask_flags	= MTD_WRITEABLE,
+		.size		= MTDPART_SIZ_FULL,
 	},
 };
 
@@ -356,7 +357,7 @@ static void __init simcom_map_io(void)
 }
 
 
-MACHINE_START(SIMCOM, "Combitech SimCom Module")
+MACHINE_START(SIMCOM, "Combitech SimCoM")
 	.boot_params	= 0xa0000100,
 	.phys_io	= 0x40000000,
 	.io_pg_offst	= (io_p2v(0x40000000) >> 18) & 0xfffc,
