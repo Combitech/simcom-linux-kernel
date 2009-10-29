@@ -36,8 +36,9 @@
 #include <mach/pxafb.h>
 #include <mach/ohci.h>
 #include <mach/mmc.h>
-#include <mach/i2c.h>
 #include <mach/bitfield.h>
+
+#include <plat/i2c.h>
 
 #include "generic.h"
 #include "devices.h"
