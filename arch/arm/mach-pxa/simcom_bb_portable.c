@@ -306,6 +306,35 @@ static struct pxafb_mach_info generic_tft_320x240 = {
 };
 
 
+static struct pxafb_mach_info *simcom_display = &generic_tft_640x480;//&generic_crt_800x600;
+static void __init simcom_init_display(void)
+{
+	set_pxa_fb_info(simcom_display);
+}
+#else
+static inline void simcom_init_display(void) {}
+#endif // PXAFB
+
+/* Development baseboard */
+#if defined(CONFIG_SIMCOM_BB_DEV)
+static struct pca953x_platform_data gpio_exp = {
+		.gpio_base	= 128,
+		.invert = 0,
+};
+static struct i2c_board_info simcom_bb_dev_i2c_info[] = {
+	{	/* I2C Switch */
+		I2C_BOARD_INFO("pca9546a", 0x70),
+	},
+	{	/* GPIO Expander */
+		I2C_BOARD_INFO("pca9539", 0x74),
+		.platform_data = &gpio_exp,
+	},
+	{	/* Audio CODEC */
+		I2C_BOARD_INFO("tlv320aic3x", 0x18),
+	},
+};
+
+
 static struct pxafb_mach_info *simcom_display = &generic_tft_320x240;//&generic_crt_800x600;
 
 
