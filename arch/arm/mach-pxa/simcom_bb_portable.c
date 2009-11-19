@@ -134,6 +134,8 @@ static unsigned long simcom_pin_config[] = {
 	/* DM9000 */
 	GPIO21_nSDCS_3,
 
+	GPIO89_USBH1_PEN,
+	GPIO120_USBH2_PEN,
 };
 
 
@@ -207,8 +209,11 @@ static void __init simcom_init_dm9000(void)
 
 
 
-static struct pxa2xx_spi_master simcom_spi_port1_info = {
-	.num_chipselect	= 2,
+/* USB OHCI controller */
+#if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
+static struct pxaohci_platform_data simcom_ohci_platform_data = {
+	.port_mode	= PMM_PERPORT_MODE,
+	.flags		= ENABLE_PORT1 | ENABLE_PORT2,
 };
 
 
