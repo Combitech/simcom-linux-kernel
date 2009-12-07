@@ -544,6 +544,9 @@ config SIMCOM_BB_DEV
 config SIMCOM_BB_PORTABLE
 	bool "Portable baseboard"
 
+config SIMCOM_BB_KEYBOX5
+	bool "Creone Keybox5 baseboard"
+
 endchoice
 	
 endmenu

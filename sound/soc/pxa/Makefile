@@ -38,8 +38,5 @@ obj-$(CONFIG_SND_PXA2XX_SOC_MAGICIAN) += snd-soc-magician.o
 obj-$(CONFIG_SND_PXA2XX_SOC_MIOA701) += snd-soc-mioa701.o
 obj-$(CONFIG_SND_PXA2XX_SOC_SIMCOM) += snd-soc-simcom.o
 obj-$(CONFIG_SND_SOC_ZYLONITE) += snd-soc-zylonite.o
-<<<<<<< HEAD:sound/soc/pxa/Makefile
 obj-$(CONFIG_SND_PXA2XX_SOC_IMOTE2) += snd-soc-imote2.o
-=======
 
->>>>>>> 78a3f4f... Initial audio support.:sound/soc/pxa/Makefile

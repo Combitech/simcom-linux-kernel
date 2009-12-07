@@ -12,6 +12,13 @@ config CAN_VCAN
 	  This driver can also be built as a module.  If so, the module
 	  will be called vcan.
 
+config CAN_MCP2515
+	tristate "Microchip MCP2515 CAN Interface"
+	depends on CAN
+	default N
+	---help---
+	  Enables the device driver for Microchip MCP2515 CAN Interface
+
 config CAN_DEV
 	tristate "Platform CAN drivers with Netlink support"
 	depends on CAN

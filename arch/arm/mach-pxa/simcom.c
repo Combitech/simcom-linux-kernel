@@ -112,6 +112,10 @@ static unsigned long simcom_pin_config[] = {
 	GPIO87_SSP2_TXD,
 	GPIO88_SSP2_RXD,
 
+	/* USB */
+	GPIO89_USBH1_PEN,
+	GPIO120_USBH2_PEN,
+
 	/* SDRAM and local bus */
 	GPIO15_nCS_1,
 	GPIO78_nCS_2,
@@ -209,7 +213,7 @@ static inline void simcom_init_dm9000(void) {}
 #if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
 static struct pxaohci_platform_data simcom_ohci_platform_data = {
 	.port_mode	= PMM_PERPORT_MODE,
-	.flags		= ENABLE_PORT1 | ENABLE_PORT2 | POWER_CONTROL_LOW,
+	.flags		= ENABLE_PORT_ALL
 };
 
 static void __init simcom_init_ohci(void)
@@ -323,6 +327,9 @@ static struct i2c_board_info simcom_bb_dev_i2c_info[] = {
 	{	/* GPIO Expander */
 		I2C_BOARD_INFO("pca9539", 0x74),
 		.platform_data = &gpio_exp,
+	},
+	{
+		I2C_BOARD_INFO("tlv320aic3x", 0x18),
 	},
 };
 

@@ -13,6 +13,7 @@
 #include <linux/moduleparam.h>
 #include <linux/device.h>
 #include <linux/clk.h>
+#include <linux/i2c.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -62,8 +63,6 @@ static struct snd_soc_ops simcom_dai_ops = {
 };
 
 struct aic3x_setup_data aic3x_data = {
-	.i2c_bus = 0,
-	.i2c_address = 0x18,
 	.gpio_func = { 0 , 0 },
 };
 
