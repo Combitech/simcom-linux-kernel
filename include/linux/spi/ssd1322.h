@@ -12,8 +12,9 @@
 struct spi_device;
 
 struct ssd1322_spi_platform_data {
-	int reg_iopin;
-	int reset_iopin;
+	int reg_gpio;
+	int reset_gpio;
+	int cs_gpio;
 };
 
 

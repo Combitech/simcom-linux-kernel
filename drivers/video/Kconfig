@@ -497,9 +497,9 @@ config FB_ARC
 config FB_SSD1322
 	tristate "SSD1322 Based OLED Display"
 	depends on FB && SPI
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
 	help
 	  This enables support for SSD1322 Based OLED Display. 
 

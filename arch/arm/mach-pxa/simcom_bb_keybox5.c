@@ -1,5 +1,5 @@
 /*
- * linux/arch/arm/mach-pxa/simcom.c
+ * linux/arch/arm/mach-pxa/simcom_bb_keybox5.c
  *
  * Combitech SimCoM Module support, based on cm-x2xx.c
  *
@@ -29,6 +29,7 @@
 #include <linux/i2c/pca953x.h>
 
 #include <linux/spi/ssd1322.h>
+#include <linux/spi/mcp2515.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -37,6 +38,7 @@
 #include <mach/pxa2xx-regs.h>
 #include <mach/mfp-pxa27x.h>
 #include <mach/pxa2xx_spi.h>
+#include <mach/pxa27x_keypad.h>
 #include <mach/pxafb.h>
 #include <mach/ohci.h>
 #include <mach/mmc.h>
@@ -52,7 +54,7 @@
 
 /* GPIO related definitions */
 #define SIMCOM_ETHIRQ		IRQ_GPIO(20)
-#define SIMCOM_MCP2515IRQ	IRQ_GPIO(83)
+#define SIMCOM_MCP2515IRQ	83
 #define DM9000_PHYS_BASE	(PXA_CS2_PHYS)
 #define NOR_PHYS_BASE		(PXA_CS0_PHYS)
 #define NAND_PHYS_BASE		(PXA_CS1_PHYS)
@@ -75,17 +77,16 @@ static unsigned long simcom_pin_config[] = {
 	GPIO31_I2S_SYNC,
 	GPIO113_I2S_SYSCLK,
 
-	/* SSP1 */
+	/* SSP1 (CAN) */
 	GPIO23_SSP1_SCLK,
-	GPIO24_SSP1_SFRM,
+	//GPIO24_SSP1_SFRM,
 	GPIO25_SSP1_TXD,
 	GPIO26_SSP1_RXD,
 
-	/* SSP2 */
-	GPIO19_SSP2_SCLK,
-	GPIO14_SSP2_SFRM,
-	GPIO87_SSP2_TXD,
-	GPIO88_SSP2_RXD,
+	/* SSP2 (LCD) */
+	GPIO22_SSP2_SCLK,
+	GPIO37_SSP2_SFRM,
+	GPIO38_SSP2_TXD,
 
 	/* SDRAM and local bus */
 	GPIO15_nCS_1,
@@ -97,10 +98,55 @@ static unsigned long simcom_pin_config[] = {
 	GPIO49_nPWE,
 	GPIO18_RDY,
 
+	/* Keypad interface */
+	GPIO34_KP_MKIN_3,
+	GPIO100_KP_MKIN_0,
+	GPIO101_KP_MKIN_1,
+	GPIO102_KP_MKIN_2,
+	GPIO103_KP_MKOUT_0,
+	GPIO104_KP_MKOUT_1,
+	GPIO105_KP_MKOUT_2,
+	GPIO106_KP_MKOUT_3,
+
 	/* DM9000 */
 	GPIO21_nSDCS_3,
 };
 
+
+/******************************************************************************
+ * GPIO keyboard
+ ******************************************************************************/
+static unsigned int keybox5_matrix_keys[] = {
+	KEY(0, 0, KEY_5),
+	KEY(0, 1, KEY_9),
+	KEY(0, 2, KEY_1),
+	KEY(0, 3, KEY_LEFT),
+
+	KEY(1, 0, KEY_6),
+	KEY(1, 1, KEY_NUMERIC_STAR),
+	KEY(1, 2, KEY_2),
+	KEY(1, 3, KEY_UP),
+
+	KEY(2, 0, KEY_7),
+	KEY(2, 1, KEY_0),
+	KEY(2, 2, KEY_3),
+	KEY(2, 3, KEY_RIGHT),
+
+	KEY(3, 0, KEY_8),
+	KEY(3, 1, KEY_ENTER),
+	KEY(3, 2, KEY_4),
+	KEY(3, 3, KEY_DOWN),
+};
+
+static struct pxa27x_keypad_platform_data keybox5_keypad_platform_data = {
+	.matrix_key_rows		= 4,
+	.matrix_key_cols		= 4,
+	.matrix_key_map			= keybox5_matrix_keys,
+	.matrix_key_map_size	= ARRAY_SIZE(keybox5_matrix_keys),
+	.direct_key_num			= 0,
+
+	.debounce_interval	= 30,
+};
 
 
 static struct mtd_partition simcom_nand_partitions[] = {
@@ -110,6 +156,7 @@ static struct mtd_partition simcom_nand_partitions[] = {
 		.size		= MTDPART_SIZ_FULL,
 	},
 };
+
 
 static struct physmap_flash_data simcom_nand_data = {
 	.width		= 4,
@@ -134,14 +181,25 @@ static struct platform_device simcom_nand_device = {
 };
 
 
-static struct pxa2xx_spi_master simcom_spi_info = {
+static struct pxa2xx_spi_master simcom_spi_port1_info = {
+	.num_chipselect	= 1,
+	.enable_dma		= 0,
+};
+
+static struct pxa2xx_spi_master simcom_spi_port2_info = {
 	.num_chipselect	= 1,
 	.enable_dma		= 0,
 };
 
 struct ssd1322_spi_platform_data simcom_ssd1322_pdata = {
-	.reg_iopin = 11,
-	.reset_iopin = 30,
+	.reg_gpio = 11,
+	.reset_gpio = 30,
+	.cs_gpio = 37,
+};
+
+
+struct mcp2515_spi_platform_data simcom_mcp2515_pdata = {
+	.cs_gpio = 24,
 };
 
 
@@ -149,27 +207,21 @@ static struct spi_board_info simcom_spi_devices[] __initdata = {
 	{
 		.modalias		= "mcp2515",
 		.irq 			= SIMCOM_MCP2515IRQ,
-		.max_speed_hz	= 13000000,
+		.max_speed_hz	= 6000000,
 		.bus_num		= 1,
 		.chip_select	= 0,
 		.mode			= SPI_MODE_0,
+		.platform_data	= &simcom_mcp2515_pdata,
 	},
 	{
 		.modalias		= "ssd1322fb",
-		.max_speed_hz	= 13000000,
+		.max_speed_hz	= 6000000,
 		.bus_num		= 2,
 		.chip_select	= 0,
-		.mode			= SPI_MODE_0,
-		.platform_data		= &simcom_ssd1322_pdata,
+		.mode			= SPI_MODE_3,
+		.platform_data	= &simcom_ssd1322_pdata,
 	}
 };
-
-
-static void __init simcom_init_nand(void)
-{
-	platform_device_register(&simcom_nand_device);
-}
-
 
 
 
@@ -198,39 +250,28 @@ static struct platform_device simcom_dm9000_device = {
 	.resource	= simcom_dm9000_resource,
 };
 
-static void __init simcom_init_dm9000(void)
-{
-	platform_device_register(&simcom_dm9000_device);
-}
-
-
 
 static struct pxaohci_platform_data simcom_ohci_platform_data = {
 	.port_mode	= PMM_PERPORT_MODE,
 	.flags		= ENABLE_PORT1 | ENABLE_PORT2 | POWER_CONTROL_LOW,
 };
 
-static void __init simcom_init_ohci(void)
-{
-	pxa_set_ohci_info(&simcom_ohci_platform_data);
-}
-
-
-
-static void __init simcom_init_spi(void)
-{
-	pxa2xx_set_spi_info(1, &simcom_spi_info);
-	pxa2xx_set_spi_info(2, &simcom_spi_info);
-	spi_register_board_info(ARRAY_AND_SIZE(simcom_spi_devices));
-}
 
 
 static void __init simcom_init(void)
 {
-	simcom_init_nand();
-	simcom_init_dm9000();
-	simcom_init_ohci();
-	simcom_init_spi();
+	/* Initialize NAND */
+	platform_device_register(&simcom_nand_device);
+	/* Initialize keypad interface */
+	pxa_set_keypad_info(&keybox5_keypad_platform_data);
+	/* Initialize DM9000 */
+	platform_device_register(&simcom_dm9000_device);
+	/* Initialize USB */
+	pxa_set_ohci_info(&simcom_ohci_platform_data);
+	/* Initialize SPI interfaces */
+	pxa2xx_set_spi_info(1, &simcom_spi_port1_info);
+	pxa2xx_set_spi_info(2, &simcom_spi_port2_info);
+	spi_register_board_info(ARRAY_AND_SIZE(simcom_spi_devices));
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }
 

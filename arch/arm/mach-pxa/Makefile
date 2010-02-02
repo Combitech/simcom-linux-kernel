@@ -104,7 +104,7 @@ obj-$(CONFIG_TOSA_BT)		+= tosa-bt.o
 ifeq ($(CONFIG_SIMCOM_BB_KEYBOX5), y)
 obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_keybox5.o
 else
-obj-$(CONFIG_MACH_SIMCOM)	+= simcom.o
+obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_development.o
 endif
 
 

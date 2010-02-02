@@ -20,3 +20,11 @@ config IEEE802154_FAKEHARD
           This driver can also be built as a module. To do so say M here.
 	  The module will be called 'fakehard'.
 
+
+config IEEE802154_MRF24J40
+	tristate "Driver for radio chip mrf24j40 from Microchip"
+	depends on  IEEE802154_DRIVERS
+	---help---
+	  Say Y here to enable the driver for Microchip MRF24J40
+          This driver can also be built as a module. To do so say M here.
+	  	

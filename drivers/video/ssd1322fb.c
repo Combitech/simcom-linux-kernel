@@ -26,7 +26,16 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 
-
+static const unsigned char boot_img[] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+};
 
 
 #define ENABLE_GRAYSCALE_TABLE		0x00
@@ -63,10 +72,11 @@
 static struct fb_fix_screeninfo ssd1322fb_fix __devinitdata = {
 	.id =		"ssd1322fb",
 	.type =		FB_TYPE_PACKED_PIXELS,
-	.visual =	FB_VISUAL_TRUECOLOR,
+	.visual =	FB_VISUAL_PSEUDOCOLOR,
 	.xpanstep =	0,
 	.ypanstep =	1,
 	.ywrapstep =	0,
+	.line_length	= 128,
 	.accel =	FB_ACCEL_NONE,
 };
 
@@ -85,6 +95,10 @@ struct ssd1322_par {
 	int reg_iopin;
 	int reset_iopin;
 	struct spi_device *spi_dev;
+	unsigned char *frame;
+	struct work_struct redraw_work;
+	int is_init;
+	int init_counter;
 };
 
 
@@ -95,12 +109,6 @@ static void ssd1322_write_data(struct fb_info *info, u8 *data, int len)
 	spi_write(par->spi_dev, data, len);
 }
 
-static void ssd1322_read_data(struct fb_info *info, u8 *data, int len)
-{
-	struct ssd1322_par *par = info->par;
-	gpio_set_value(par->reg_iopin, 1);
-	spi_read(par->spi_dev, data, len);
-}
 
 
 static void ssd1322_write_command(struct fb_info *info, u8 cmd)
@@ -110,95 +118,197 @@ static void ssd1322_write_command(struct fb_info *info, u8 cmd)
 	spi_write(par->spi_dev, &cmd, 1);
 }
 
-static void ssd1322_set_draw_area(struct fb_info *info, u8 x, u8 y, u8 width, u8 height)
-{
 
+static void ssd1322_sleep(struct fb_info *info)
+{
+	ssd1322_write_command(info, SLEEP_MODE_ON);
+}
+
+static void ssd1322_unsleep(struct fb_info *info)
+{
+	ssd1322_write_command(info, SLEEP_MODE_OFF);
+}
+
+
+static void ssd1322_update_display(struct work_struct *work)
+{
+	struct ssd1322_par *par =	container_of(work, struct ssd1322_par, redraw_work);
+	int i;
+
+	ssd1322_write_command(par->info, WRITE_RAM_COMMAND);
+		for(i=0; i<(128*64); i++) {
+			par->frame[i] = (par->info->screen_base[i]<<4) | (par->info->screen_base[i]>>4);
+		}
+		ssd1322_write_data(par->info, par->frame, 128*64);
 
 }
 
 
+static ssize_t ssd1322_write(struct fb_info *info, const char __user *buf,
+			   size_t count, loff_t *ppos)
+{
+	unsigned long p;
+	int err=-EINVAL;
+	unsigned int fbmemlength;
+	struct ssd1322_par *par;
+	unsigned int xres;
+
+	p = *ppos;
+	par = info->par;
+	par->is_init = 1;
+	xres = info->var.xres;
+	fbmemlength = (xres * info->var.yres)/2;
+
+	if (p > fbmemlength)
+		return -ENOSPC;
+
+	err = 0;
+	if ((count + p) > fbmemlength) {
+		count = fbmemlength - p;
+		err = -ENOSPC;
+	}
+
+	if (count) {
+		char *base_addr;
+		base_addr = (char __force *)info->screen_base;
+		count -= copy_from_user(base_addr + p, buf, count);
+		err = -EFAULT;
+	}
+
+	schedule_work(&par->redraw_work);
+
+	if (count)
+		return count;
+	return err;
+}
+
+
+static int ssd1322_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
+{
+	void __user *argp = (void __user *)arg;
+	struct ssd1322_par *par = info->par;
+	unsigned long flags;
+
+	switch (cmd) {
+		case FBIOPUT_MODEINFO:
+		{
+			if(arg) {
+				ssd1322_sleep(info);
+			}
+			else {
+				ssd1322_unsleep(info);
+			}
+			return 0;
+		}
+		default:
+			return -EINVAL;
+	}
+}
+
 static int ssd1322_open(struct fb_info *info, int user)
 {
-	u8 data;
-	printk("ssd1322_open\n");
+	u8 data[3];
+	struct fb_image image;
+	int i;
+	struct ssd1322_par *par = info->par;
+
 	ssd1322_write_command(info, SET_COMMAND_LOCK);
-	data = 0x12;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x12;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SLEEP_MODE_ON);
 
 	ssd1322_write_command(info, SET_FRONT_CLOCK_DIVIDER);
-	data = 0x91;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x91;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_MUX_RATIO);
-	data = 0x3f;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x3f;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_DISPLAY_OFFSET);
-	data = 0x00;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x00;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_DISPLAY_START_LINE);
-	data = 0x00;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x00;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, 0xa0);
-	data = 0x14;
-	ssd1322_write_data(info, &data, 1);
-	data = 0x11;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x14;
+	data[1] = 0x11;
+	ssd1322_write_data(info, &data[0], 2);
 
 	ssd1322_write_command(info, SET_GPIO);
-	data = 0x00;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x00;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, FUNCTION_SELECTION);
-	data = 0x01;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x01;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, 0xb4);
-	data = 0xa0;
-	ssd1322_write_data(info, &data, 1);
-	data = 0xfd;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0xa0;
+	data[1] = 0xfd;
+	ssd1322_write_data(info, &data[0], 2);
 
 	ssd1322_write_command(info, SET_CONTRAST_CURRENT);
-	data = 0x9f;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x9f;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, MASTER_CONTRAST_CURRENT);
-	data = 0x0f;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x0f;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SELECT_DEFAULT_GRAYSCALE);
 
 	ssd1322_write_command(info, SET_PHASE_LENGTH);
-	data = 0xe2;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0xe2;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, 0xd1);
-	data = 0x82;
-	ssd1322_write_data(info, &data, 1);
-	data = 0x20;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x82;
+	data[1] = 0x20;
+	ssd1322_write_data(info, &data[0], 2);
 
 	ssd1322_write_command(info, SET_PRECHARGE_VOLTAGE);
-	data = 0x1f;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x1f;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_SECOND_PRCHARGE_PERIOD);
-	data = 0x08;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x08;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_VCOMH);
-	data = 0x07;
-	ssd1322_write_data(info, &data, 1);
+	data[0] = 0x07;
+	ssd1322_write_data(info, &data[0], 1);
 
 	ssd1322_write_command(info, SET_DISPLAY_MODE_NORMAL);
 
 	ssd1322_write_command(info, SLEEP_MODE_OFF);
 
+
+	//! Set start line
+	ssd1322_write_command(info, SET_ROW_ADDRESS);
+	data[0] = 0;
+	data[1] = 0x3f;
+	ssd1322_write_data(info, &data[0], 2);
+
+	//! Set the column
+	ssd1322_write_command(info, SET_COLUMN_ADDRESS);
+	data[0] = 0x1c;
+	data[1] = 0x5b;
+	ssd1322_write_data(info, &data[0], 2);
+
+	image.data = &boot_img;
+	image.depth = 8;
+	image.dx = 124;
+	image.dy = 28;
+	image.height = 8;
+	image.width = 8;
+	sys_imageblit(info, &image);
+
+	schedule_work(&par->redraw_work);
 
 	return 0;
 }
@@ -212,63 +322,57 @@ static int ssd1322_release(struct fb_info *info, int user)
 
 static void ssd1322_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
-	/* Setup drawing area and fill */
-	ssd1322_set_draw_area(info, rect->dx, rect->dy, rect->width, rect->height);
-	ssd1322_write_command(info, WRITE_RAM_COMMAND);
-	ssd1322_write_data(info, (u8 *)&rect->color, rect->width*rect->height);
+
+	struct ssd1322_par *par = info->par;
+	//sys_fillrect(info, rect);
+	//schedule_work(&par->redraw_work);
 }
 
 static void ssd1322_copyarea(struct fb_info *info, const struct fb_copyarea *area)
 {
 
-
+	struct ssd1322_par *par = info->par;
+	//sys_copyarea(info, area);
+	//schedule_work(&par->redraw_work);
 }
 
 static void ssd1322_imageblit(struct fb_info *info, const struct fb_image *image)
 {
-	/* Setup drawing area and fill */
-	ssd1322_set_draw_area(info, image->dx, image->dy, image->width, image->height);
-	ssd1322_write_command(info, WRITE_RAM_COMMAND);
-	ssd1322_write_data(info, (u8 *)image->data, image->width*image->height);
+	struct ssd1322_par *par = info->par;
+	//sys_imageblit(info, image);
+	//schedule_work(&par->redraw_work);
 }
-
-
-
 
 
 static struct fb_ops ssd1322_ops = {
 	.owner			= THIS_MODULE,
 	.fb_open		= ssd1322_open,
 	.fb_release		= ssd1322_release,
+	.fb_write		= ssd1322_write,
 	.fb_fillrect	= ssd1322_fillrect,
 	.fb_copyarea	= ssd1322_copyarea,
 	.fb_imageblit	= ssd1322_imageblit,
+	.fb_ioctl		= ssd1322_ioctl,
 };
+
 
 static int __devinit ssd1322_probe(struct spi_device *spi)
 {
 	struct fb_info *info;
 	int retval = -ENOMEM;
-	int videomemorysize;
-	unsigned char *videomemory;
 	struct ssd1322_par *par;
 	struct ssd1322_spi_platform_data *pdata = spi->dev.platform_data;
 
-	videomemorysize = 256*64 / 2;
-
-	if (!(videomemory = vmalloc(videomemorysize)))
-		return retval;
 
 	printk("Probing ssd1322 display\n");
-
-	memset(videomemory, 0, videomemorysize);
 
 	info = framebuffer_alloc(sizeof(struct ssd1322_par), &spi->dev);
 	if (!info)
 		goto err;
 
-	//framebuffer_priv(info)
-	info->screen_base = (char __iomem *)videomemory;
+
+	info->screen_base = kmalloc(256*64, GFP_KERNEL);
+	memset(info->screen_base, 0, 256*64);
 	info->fbops = &ssd1322_ops;
 	info->fix = ssd1322fb_fix;
 	info->var = ssd1322fb_var;
@@ -276,16 +380,19 @@ static int __devinit ssd1322_probe(struct spi_device *spi)
 
 	par = info->par;
 	par->info = info;
-	par->reg_iopin = pdata->reg_iopin;
-	par->reset_iopin = pdata->reset_iopin;
+	par->reg_iopin = pdata->reg_gpio;
+	par->reset_iopin = pdata->reset_gpio;
+	par->frame = kmalloc(256*64, GFP_KERNEL);
+	memset(par->frame, 0, 256*64);
 	par->spi_dev = spi;
+	par->is_init = 0;
 
-	gpio_request(par->reg_iopin, "cmd_data_pin");
-	gpio_request(par->reset_iopin, "reset_pin");
+	INIT_WORK(&par->redraw_work, ssd1322_update_display);
+
+
+	gpio_request(par->reg_iopin, "ssd1322fb_cmd_data");
 	gpio_direction_output(par->reg_iopin, 0);
-	gpio_direction_output(par->reset_iopin, 1);
 	gpio_set_value(par->reg_iopin, 0);
-	gpio_set_value(par->reset_iopin, 1);
 
 	retval = register_framebuffer(info);
 	dev_set_drvdata(&spi->dev, info);
@@ -293,7 +400,7 @@ static int __devinit ssd1322_probe(struct spi_device *spi)
 	return 0;
 err:
 	framebuffer_release(info);
-	vfree(videomemory);
+	kfree(info->screen_base);
 	return retval;
 }
 
