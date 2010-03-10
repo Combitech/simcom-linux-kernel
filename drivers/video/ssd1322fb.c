@@ -26,17 +26,6 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 
-static const unsigned char boot_img[] = {
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-};
-
 
 #define ENABLE_GRAYSCALE_TABLE		0x00
 #define SET_COLUMN_ADDRESS			0x15
@@ -208,7 +197,6 @@ static int ssd1322_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 static int ssd1322_open(struct fb_info *info, int user)
 {
 	u8 data[3];
-	struct fb_image image;
 	int i;
 	struct ssd1322_par *par = info->par;
 
@@ -300,14 +288,6 @@ static int ssd1322_open(struct fb_info *info, int user)
 	data[1] = 0x5b;
 	ssd1322_write_data(info, &data[0], 2);
 
-	image.data = &boot_img;
-	image.depth = 8;
-	image.dx = 124;
-	image.dy = 28;
-	image.height = 8;
-	image.width = 8;
-	sys_imageblit(info, &image);
-
 	schedule_work(&par->redraw_work);
 
 	return 0;
@@ -381,7 +361,9 @@ static int __devinit ssd1322_probe(struct spi_device *spi)
 	par = info->par;
 	par->info = info;
 	par->reg_iopin = pdata->reg_gpio;
+
 	par->reset_iopin = pdata->reset_gpio;
+	printk("reset iopin=%i\n", par->reset_iopin);
 	par->frame = kmalloc(256*64, GFP_KERNEL);
 	memset(par->frame, 0, 256*64);
 	par->spi_dev = spi;
@@ -393,6 +375,10 @@ static int __devinit ssd1322_probe(struct spi_device *spi)
 	gpio_request(par->reg_iopin, "ssd1322fb_cmd_data");
 	gpio_direction_output(par->reg_iopin, 0);
 	gpio_set_value(par->reg_iopin, 0);
+
+	gpio_request(par->reset_iopin, "ssd1322fb_reset");
+	gpio_direction_output(par->reset_iopin, 1);
+	gpio_set_value(par->reset_iopin, 1);
 
 	retval = register_framebuffer(info);
 	dev_set_drvdata(&spi->dev, info);

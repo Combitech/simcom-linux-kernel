@@ -101,6 +101,7 @@ struct mcp2515_priv {
 	struct workqueue_struct *work_queue;
 	int tx_next;
 	int cs_gpio;
+	int reset_gpio;
 };
 
 
@@ -247,6 +248,9 @@ static inline int mcp2515_get_next_tx_buffer(struct mcp2515_priv *priv)
 static void mcp2515_chip_start(struct net_device *dev)
 {
 	struct mcp2515_priv *priv = netdev_priv(dev);
+
+	set_current_state(TASK_INTERRUPTIBLE);
+	schedule_timeout(200);
 
 	mcp2515_exec(priv, MCP_RESET);
 
@@ -517,6 +521,7 @@ static int __devinit mcp2515_probe(struct spi_device *spi)
 
 	pdata = spi->dev.platform_data;
 	priv->cs_gpio = pdata->cs_gpio;
+	priv->reset_gpio = pdata->reset_gpio;
 
 	gpio_request(priv->cs_gpio, "mcp2515_cs");
 	gpio_direction_output(priv->cs_gpio, 0);

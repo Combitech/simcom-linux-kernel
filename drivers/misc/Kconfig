@@ -30,6 +30,12 @@ config ATMEL_TCLIB
 	  blocks found on many Atmel processors.  This facilitates using
 	  these blocks by different drivers despite processor differences.
 
+config MICROCHIP_MCP3002
+	bool "Microchip MCP3002 A/D Converter"
+	depends on SPI
+	help
+	  Select this if you want a driver for MCP3002 A/D Converter
+
 config ATMEL_TCB_CLKSRC
 	bool "TC Block Clocksource"
 	depends on ATMEL_TCLIB && GENERIC_TIME

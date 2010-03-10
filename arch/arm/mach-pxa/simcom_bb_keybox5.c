@@ -26,7 +26,6 @@
 #include <linux/mtd/physmap.h>
 
 #include <linux/dm9000.h>
-#include <linux/i2c/pca953x.h>
 
 #include <linux/spi/ssd1322.h>
 #include <linux/spi/mcp2515.h>
@@ -193,13 +192,14 @@ static struct pxa2xx_spi_master simcom_spi_port2_info = {
 
 struct ssd1322_spi_platform_data simcom_ssd1322_pdata = {
 	.reg_gpio = 11,
-	.reset_gpio = 30,
+	.reset_gpio = 93,
 	.cs_gpio = 37,
 };
 
 
 struct mcp2515_spi_platform_data simcom_mcp2515_pdata = {
 	.cs_gpio = 24,
+	.reset_gpio = 94,
 };
 
 
@@ -223,6 +223,11 @@ static struct spi_board_info simcom_spi_devices[] __initdata = {
 	}
 };
 
+static struct i2c_board_info simcom_keybox5_i2c_info[] = {
+	{
+		I2C_BOARD_INFO("m41t65", 0x68) /* Realtime Clock */
+	},
+};
 
 
 static struct resource simcom_dm9000_resource[] = {
@@ -272,6 +277,10 @@ static void __init simcom_init(void)
 	pxa2xx_set_spi_info(1, &simcom_spi_port1_info);
 	pxa2xx_set_spi_info(2, &simcom_spi_port2_info);
 	spi_register_board_info(ARRAY_AND_SIZE(simcom_spi_devices));
+
+	pxa_set_i2c_info(NULL);
+	i2c_register_board_info(0, ARRAY_AND_SIZE(simcom_keybox5_i2c_info));
+
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }
 
