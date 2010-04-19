@@ -248,13 +248,15 @@ static void mcp2515_chip_start(struct net_device *dev)
 {
 	struct mcp2515_priv *priv = netdev_priv(dev);
 
-	set_current_state(TASK_INTERRUPTIBLE);
-	schedule_timeout(200);
-
+	gpio_set_value(priv->reset_gpio, 0);
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule_timeout(1*HZ);
+	gpio_set_value(priv->reset_gpio, 1);
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule_timeout(1*HZ);
 	mcp2515_exec(priv, MCP_RESET);
-
-	set_current_state(TASK_INTERRUPTIBLE);
-	schedule_timeout(50);
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule_timeout(1*HZ);
 
 	mcp2515_write_reg(priv, CNF1, ((1<<6) | 9));
 	mcp2515_write_reg(priv, CNF2, ((1<<7) | (1<<6) | (4<<3)));
@@ -521,6 +523,14 @@ static int __devinit mcp2515_probe(struct spi_device *spi)
 	pdata = spi->dev.platform_data;
 	priv->cs_gpio = pdata->cs_gpio;
 	priv->reset_gpio = pdata->reset_gpio;
+
+	if(gpio_request(priv->reset_gpio, "mcp2515_reset") < 0) {
+		printk("Could not request reset pin for mcp2515\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->reset_gpio, 1);
+	gpio_set_value(priv->reset_gpio, 1);
 
 	if(gpio_request(priv->cs_gpio, "mcp2515_cs") < 0) {
 		printk("Could not request chip select pin for mcp2515\n");
