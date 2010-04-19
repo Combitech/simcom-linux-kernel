@@ -121,15 +121,14 @@ static void ssd1322_unsleep(struct fb_info *info)
 
 static void ssd1322_update_display(struct work_struct *work)
 {
-	struct ssd1322_par *par =	container_of(work, struct ssd1322_par, redraw_work);
+	struct ssd1322_par *par = container_of(work, struct ssd1322_par, redraw_work);
 	int i;
 
 	ssd1322_write_command(par->info, WRITE_RAM_COMMAND);
-		for(i=0; i<(128*64); i++) {
-			par->frame[i] = (par->info->screen_base[i]<<4) | (par->info->screen_base[i]>>4);
-		}
-		ssd1322_write_data(par->info, par->frame, 128*64);
-
+	for(i=0; i<(128*64); i++) {
+		par->frame[i] = (par->info->screen_base[i]<<4) | (par->info->screen_base[i]>>4);
+	}
+	ssd1322_write_data(par->info, par->frame, 128*64);
 }
 
 
@@ -174,8 +173,8 @@ static ssize_t ssd1322_write(struct fb_info *info, const char __user *buf,
 
 static int ssd1322_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
-	void __user *argp = (void __user *)arg;
-	struct ssd1322_par *par = info->par;
+	//void __user *argp = (void __user *)arg;
+	//struct ssd1322_par *par = info->par;
 	unsigned long flags;
 
 	switch (cmd) {
@@ -303,7 +302,7 @@ static int ssd1322_release(struct fb_info *info, int user)
 static void ssd1322_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 
-	struct ssd1322_par *par = info->par;
+	//struct ssd1322_par *par = info->par;
 	//sys_fillrect(info, rect);
 	//schedule_work(&par->redraw_work);
 }
@@ -311,14 +310,14 @@ static void ssd1322_fillrect(struct fb_info *info, const struct fb_fillrect *rec
 static void ssd1322_copyarea(struct fb_info *info, const struct fb_copyarea *area)
 {
 
-	struct ssd1322_par *par = info->par;
+	//struct ssd1322_par *par = info->par;
 	//sys_copyarea(info, area);
 	//schedule_work(&par->redraw_work);
 }
 
 static void ssd1322_imageblit(struct fb_info *info, const struct fb_image *image)
 {
-	struct ssd1322_par *par = info->par;
+	//struct ssd1322_par *par = info->par;
 	//sys_imageblit(info, image);
 	//schedule_work(&par->redraw_work);
 }
@@ -361,16 +360,13 @@ static int __devinit ssd1322_probe(struct spi_device *spi)
 	par = info->par;
 	par->info = info;
 	par->reg_iopin = pdata->reg_gpio;
-
 	par->reset_iopin = pdata->reset_gpio;
-	printk("reset iopin=%i\n", par->reset_iopin);
 	par->frame = kmalloc(256*64, GFP_KERNEL);
 	memset(par->frame, 0, 256*64);
 	par->spi_dev = spi;
 	par->is_init = 0;
 
 	INIT_WORK(&par->redraw_work, ssd1322_update_display);
-
 
 	gpio_request(par->reg_iopin, "ssd1322fb_cmd_data");
 	gpio_direction_output(par->reg_iopin, 0);

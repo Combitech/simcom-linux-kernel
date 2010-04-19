@@ -182,7 +182,7 @@ static int mcp2515_write_buffer(struct mcp2515_priv *priv, struct can_frame *cf,
 	}
 
 	tx[1] = cf->can_id>>3;
-	tx[2] = (cf->can_id&0x03)<<5;
+	tx[2] = (cf->can_id&0x07)<<5;
 	tx[3] = 0;
 	tx[4] = 0;
 	tx[5] = cf->can_dlc;
@@ -192,7 +192,6 @@ static int mcp2515_write_buffer(struct mcp2515_priv *priv, struct can_frame *cf,
 	gpio_set_value(priv->cs_gpio, 0);
 	spi_write(priv->spi_dev, tx, 6+cf->can_dlc);
 	gpio_set_value(priv->cs_gpio, 1);
-
 
 	return 0;
 }
@@ -319,6 +318,7 @@ static void mcp2515_irq_handler(struct work_struct *work)
 	struct can_frame *cf;
 	struct sk_buff *skb;
 	u8 flags;
+
 	gpio_set_value(priv->cs_gpio, 1);
 	while(!gpio_get_value(priv->spi_dev->irq))
 	{
@@ -376,7 +376,6 @@ static void mcp2515_tx_handler(struct work_struct *work)
 	struct net_device_stats *stats = &priv->dev->stats;
 	struct can_frame *cf = (struct can_frame *)priv->tx_skb->data;
 	int buf;
-
 
 	mcp2515_write_buffer(priv, cf, 0);
 	/* Send message */
@@ -523,11 +522,19 @@ static int __devinit mcp2515_probe(struct spi_device *spi)
 	priv->cs_gpio = pdata->cs_gpio;
 	priv->reset_gpio = pdata->reset_gpio;
 
-	gpio_request(priv->cs_gpio, "mcp2515_cs");
+	if(gpio_request(priv->cs_gpio, "mcp2515_cs") < 0) {
+		printk("Could not request chip select pin for mcp2515\n");
+		goto exit_free;
+	}
+
 	gpio_direction_output(priv->cs_gpio, 0);
 	gpio_set_value(priv->cs_gpio, 1);
 
-	gpio_request(spi->irq, "mcp2515_irq");
+	if(gpio_request(spi->irq, "mcp2515_irq") < 0) {
+		printk("Could not request irq pin for mcp2515\n");
+		goto exit_free;
+	}
+
 	gpio_direction_input(spi->irq);
 	set_irq_type(IRQ_GPIO(spi->irq), IRQ_TYPE_EDGE_FALLING);
 

@@ -65,6 +65,11 @@ static unsigned long simcom_pin_config[] = {
 	GPIO46_STUART_RXD,
 	GPIO47_STUART_TXD,
 
+	/* BTUART */
+	GPIO45_BTUART_RTS,
+	GPIO42_BTUART_RXD,
+	GPIO43_BTUART_TXD,
+
 	/* I2C */
 	GPIO117_I2C_SCL,
 	GPIO118_I2C_SDA,
@@ -193,13 +198,17 @@ static struct pxa2xx_spi_master simcom_spi_port2_info = {
 struct ssd1322_spi_platform_data simcom_ssd1322_pdata = {
 	.reg_gpio = 11,
 	.reset_gpio = 93,
-	.cs_gpio = 37,
 };
 
 
 struct mcp2515_spi_platform_data simcom_mcp2515_pdata = {
 	.cs_gpio = 24,
 	.reset_gpio = 94,
+};
+
+static struct pxa2xx_spi_chip ssd1322_chip = {
+	.gpio_cs = 37,
+	.dma_burst_size = 8,
 };
 
 
@@ -219,6 +228,7 @@ static struct spi_board_info simcom_spi_devices[] __initdata = {
 		.bus_num		= 2,
 		.chip_select	= 0,
 		.mode			= SPI_MODE_3,
+		.controller_data = &ssd1322_chip,
 		.platform_data	= &simcom_ssd1322_pdata,
 	}
 };
