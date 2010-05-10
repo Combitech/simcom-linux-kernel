@@ -84,6 +84,11 @@ config GPIO_VR41XX
 	depends on CPU_VR41XX
 	help
 	  Say yes here to support the NEC VR4100 series General-purpose I/O Uint
+	  
+config GPIO_MS6
+	tristate "MS6 GPIO Support"
+	help
+	  Support for MS6 GPIO
 
 comment "I2C GPIO expanders:"
 

@@ -307,6 +307,16 @@ config RISCOM8
 	  Also it's possible to say M here and compile this driver as kernel
 	  loadable module; the module will be called riscom8.
 
+config MS6_COUNTER
+	tristate "Combitech MS6 Counter support"
+	help
+	  Support fpr MS6 Counters
+
+config MS6_ADC
+	tristate "Combitech MS6 A/D Converter support"
+	help
+	  Support fpr MS6 A/D Converters	  
+	  
 config SPECIALIX
 	tristate "Specialix IO8+ card support"
 	depends on SERIAL_NONSTANDARD
