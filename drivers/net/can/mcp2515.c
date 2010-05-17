@@ -485,7 +485,7 @@ static int __devinit mcp2515_probe(struct spi_device *spi)
 	dev->mtu				= sizeof(struct can_frame);
 	dev->hard_header_len	= 0;
 	dev->addr_len			= 0;
-	dev->tx_queue_len		= 10;
+	dev->tx_queue_len		= 50;
 	dev->flags				= IFF_NOARP;
 	dev->netdev_ops			= &mcp2515_netdev_ops;
 	dev->destructor			= free_netdev;
