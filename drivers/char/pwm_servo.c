@@ -18,7 +18,6 @@
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
 #include <linux/pwm.h>
-#include <linux/pwm_servo.h>
 #include <linux/platform_device.h>
 
 

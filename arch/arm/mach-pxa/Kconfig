@@ -530,6 +530,7 @@ config MACH_SIMCOM
 	select PXA27x
 	select IWMMXT
 	select PXA_SSP
+	select HAVE_PWM
 
 choice
 	prompt "SimCom Baseboards"
@@ -546,6 +547,9 @@ config SIMCOM_BB_PORTABLE
 
 config SIMCOM_BB_KEYBOX5
 	bool "Creone Keybox5 baseboard"
+	
+config SIMCOM_BB_MINESTO
+	bool "Minesto Nacelle baseboard"
 
 endchoice
 	

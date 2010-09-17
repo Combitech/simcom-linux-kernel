@@ -28,7 +28,6 @@
 #include <linux/dm9000.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/spi/mcp2515.h>
-#include <linux/pwm_servo.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -189,31 +188,6 @@ static struct pxaohci_platform_data simcom_ohci_platform_data = {
 };
 
 
-/***************************************************************/
-/*                           PWM                               */
-/***************************************************************/
-static struct pwm_servo_data servo0_data = {
-	.pwm_id		= 0,
-};
-
-static struct platform_device rudder_servo = {
-	.name		= "pwm-servo",
-	.dev		= {
-		.platform_data	= &servo0_data,
-	},
-};
-
-static struct pwm_servo_data servo1_data = {
-	.pwm_id		= 1,
-};
-
-static struct platform_device wing_servo = {
-	.name		= "pwm-servo",
-	.dev		= {
-		.platform_data	= &servo1_data,
-	},
-};
-
 
 /***************************************************************/
 /*                         Ethernet                            */
@@ -248,12 +222,12 @@ static struct platform_device simcom_dm9000_device = {
 /*                            SPI							    */
 /****************************************************************/
 static struct pxa2xx_spi_master simcom_spi_port1_info = {
-	.num_chipselect	= 1,
+	.num_chipselect	= 3,
 	.enable_dma		= 0,
 };
 
 static struct pxa2xx_spi_master simcom_spi_port2_info = {
-	.num_chipselect	= 1,
+	.num_chipselect	= 3,
 	.enable_dma		= 0,
 };
 
@@ -274,6 +248,27 @@ static struct spi_board_info simcom_spi_devices[] __initdata = {
 		.mode			= SPI_MODE_0,
 		.platform_data	= &simcom_mcp2515_pdata,
 	},
+	{
+		.modalias		= "adxl346",
+		.max_speed_hz	= 6000000,
+		.bus_num		= 1,
+		.chip_select	= 1,
+		.mode			= SPI_MODE_0,
+	},
+	{
+		.modalias		= "mcp3001",
+		.max_speed_hz	= 6000000,
+		.bus_num		= 1,
+		.chip_select	= 2,
+		.mode			= SPI_MODE_0,
+	},
+	{
+		.modalias		= "mcp3008",
+		.max_speed_hz	= 6000000,
+		.bus_num		= 2,
+		.chip_select	= 0,
+		.mode			= SPI_MODE_0,
+	},
 };
 
 /***************************************************************/
@@ -292,9 +287,6 @@ static void __init simcom_init(void)
 	platform_device_register(&simcom_nand_device);
 	/* Initialize DM9000 */
 	platform_device_register(&simcom_dm9000_device);
-	/* Initialize pwm signals */
-	platform_device_register(&rudder_servo);
-	platform_device_register(&wing_servo);
 	/* Initialize SPI interfaces */
 	pxa2xx_set_spi_info(1, &simcom_spi_port1_info);
 	pxa2xx_set_spi_info(2, &simcom_spi_port2_info);

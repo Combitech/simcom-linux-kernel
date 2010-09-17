@@ -107,6 +107,8 @@ else ifeq ($(CONFIG_SIMCOM_BB_PORTABLE), y)
 obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_portable.o
 else ifeq ($(CONFIG_SIMCOM_BB_DEV), y)
 obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_development.o
+else ifeq ($(CONFIG_SIMCOM_BB_MINESTO), y)
+obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_minesto.o
 else
 obj-$(CONFIG_MACH_SIMCOM)	+= simcom_bb_development.o
 endif

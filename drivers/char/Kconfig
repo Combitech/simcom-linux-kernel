@@ -316,6 +316,23 @@ config MS6_ADC
 	tristate "Combitech MS6 A/D Converter support"
 	help
 	  Support fpr MS6 A/D Converters	  
+
+config PWM_SERVO
+	tristate "Generic sysfs PWM support"
+	help
+	  Support for a generic PWM via sysfs
+
+config ADXL346
+	tristate "Analog Devices ADXL346"
+	depends on SPI
+	help
+	  Select this if you want a driver for Analog Devices ADXL346
+
+config MICROCHIP_MCP300X
+	tristate "Microchip MCP300x A/D Converters"
+	depends on SPI
+	help
+	  Select this if you want a driver for MCP300x A/D Converters
 	  
 config SPECIALIX
 	tristate "Specialix IO8+ card support"
