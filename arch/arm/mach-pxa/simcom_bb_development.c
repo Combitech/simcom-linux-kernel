@@ -229,7 +229,7 @@ static inline void simcom_init_ohci(void) {}
 #if defined(CONFIG_FB_PXA) || defined(CONFIG_FB_PXA_MODULE)
 static struct pxafb_mode_info generic_crt_800x600_mode = {
 	.pixclock	= 28846,
-	.bpp		= 8,
+	.bpp		= 16,
 	.xres		= 800,
 	.yres	  	= 600,
 	.hsync_len	= 63,
@@ -255,7 +255,7 @@ static struct pxafb_mach_info generic_crt_800x600 = {
 
 static struct pxafb_mode_info generic_crt_640x480_mode = {
 	.pixclock	= 38461,
-	.bpp		= 8,
+	.bpp		= 16,
 	.xres		= 640,
 	.yres		= 480,
 	.hsync_len	= 63,
@@ -280,7 +280,7 @@ static struct pxafb_mach_info generic_crt_640x480 = {
 
 static struct pxafb_mode_info generic_tft_640x480_mode = {
 	.pixclock	= 38461,
-	.bpp		= 8,
+	.bpp		= 16,
 	.xres		= 640,
 	.yres		= 480,
 	.hsync_len	= 60,

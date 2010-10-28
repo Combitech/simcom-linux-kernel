@@ -117,7 +117,8 @@ obj-$(CONFIG_MS6_ADC)		+= ms6_adc.o
 
 obj-$(CONFIG_PWM_SERVO)		+= pwm_servo.o
 obj-$(CONFIG_ADXL346)		+= adxl346.o
-obj-$(CONFIG_MICROCHIP_MCP300X) += mcp300x.o
+obj-$(CONFIG_MCP300X) 		+= mcp300x.o
+obj-$(CONFIG_ADIS16135) 	+= adis16135.o
 
 # Files generated that shall be removed upon make clean
 clean-files := consolemap_deftbl.c defkeymap.c

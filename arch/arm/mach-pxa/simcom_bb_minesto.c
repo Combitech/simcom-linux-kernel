@@ -269,6 +269,13 @@ static struct spi_board_info simcom_spi_devices[] __initdata = {
 		.chip_select	= 0,
 		.mode			= SPI_MODE_0,
 	},
+	{
+		.modalias		= "adis16135",
+		.max_speed_hz	= 6000000,
+		.bus_num		= 2,
+		.chip_select	= 1,
+		.mode			= SPI_MODE_0,
+	},
 };
 
 /***************************************************************/
