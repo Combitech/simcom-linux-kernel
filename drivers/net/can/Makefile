@@ -4,6 +4,7 @@
 
 obj-$(CONFIG_CAN_VCAN)		+= vcan.o
 obj-$(CONFIG_CAN_MCP2515)	+= mcp2515.o
+obj-$(CONFIG_CAN_NACELLE)	+= nacelle_can.o
 
 obj-$(CONFIG_CAN_DEV)		+= can-dev.o
 can-dev-y			:= dev.o

@@ -18,6 +18,13 @@ config CAN_MCP2515
 	default N
 	---help---
 	  Enables the device driver for Microchip MCP2515 CAN Interface
+	  
+config CAN_NACELLE
+	tristate "Nacelle CAN"
+	depends on CAN
+	default N
+	---help---
+	  Enables the device driver for Microchip MCP2515 CAN Interface
 
 config CAN_DEV
 	tristate "Platform CAN drivers with Netlink support"
