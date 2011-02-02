@@ -116,7 +116,11 @@ obj-$(CONFIG_MS6_COUNTER)	+= ms6_counter.o
 obj-$(CONFIG_MS6_ADC)		+= ms6_adc.o
 
 obj-$(CONFIG_PWM_SERVO)		+= pwm_servo.o
-obj-$(CONFIG_ADXL346)		+= adxl346.o
+obj-$(CONFIG_HCPL0872)		+= hcpl0872.o
+obj-$(CONFIG_TMP175)		+= tmp175.o
+obj-$(CONFIG_ADXL34X)		+= adxl34x.o
+obj-$(CONFIG_PIC_PWM)		+= pic_pwm.o
+obj-$(CONFIG_AD77XX)		+= ad77xx.o
 obj-$(CONFIG_MCP300X) 		+= mcp300x.o
 obj-$(CONFIG_ADIS16135) 	+= adis16135.o
 

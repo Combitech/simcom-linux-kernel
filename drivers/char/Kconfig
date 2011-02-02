@@ -322,11 +322,35 @@ config PWM_SERVO
 	help
 	  Support for a generic PWM via sysfs
 
-config ADXL346
-	tristate "Analog Devices ADXL346"
+config PIC_PWM
+	tristate "PIC help processor for Nacelle on Sea Kite"
 	depends on SPI
 	help
-	  Select this if you want a driver for Analog Devices ADXL346
+		PIC help processor for Nacelle on Sea Kite.
+		
+config AD77XX
+	tristate "Analog Devices AD7799/AD7798"
+	depends on SPI
+	help
+		Select this if you want a driver for Analog Devices AD7799/AD7798
+		
+config HCPL0872
+	tristate "Agilent HCPL-0872 Digital Interface IC"
+	depends on SPI
+	help
+		Select this if you want a driver for Agilent HCPL-0872 Digital Interface IC		
+
+config TMP175
+	tristate "Texas Instruments TMP175"
+	depends on I2C
+	help
+		Select this if you want a driver for Texas Instruments TMP175 Digital Temperature Sensor
+
+config ADXL34X
+	tristate "Analog Devices ADXL345/ADXL346"
+	depends on SPI
+	help
+	  Select this if you want a driver for Analog Devices ADXL345/ADXL346
 
 config MCP300X
 	tristate "Microchip MCP300x A/D Converters"
