@@ -28,6 +28,7 @@
 #include <linux/dm9000.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/spi/mcp2515.h>
+#include <linux/can/platform/nacelle.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -52,6 +53,10 @@
 
 /* GPIO related definitions */
 #define SIMCOM_ETHIRQ		IRQ_GPIO(20)
+#define NACELLE_MMCDETECT	53
+
+#define MCP3002_CS			115
+
 
 #define DM9000_PHYS_BASE	(PXA_CS2_PHYS)
 #define NOR_PHYS_BASE		(PXA_CS0_PHYS)
@@ -107,27 +112,30 @@ static unsigned long simcom_pin_config[] = {
 	GPIO31_I2S_SYNC,
 	GPIO113_I2S_SYSCLK,
 
+	/* MMC Card */
+	GPIO32_MMC_CLK,
+	GPIO92_MMC_DAT_0,
+	GPIO109_MMC_DAT_1,
+	GPIO110_MMC_DAT_2,
+	GPIO111_MMC_DAT_3,
+	GPIO112_MMC_CMD,
+
 	/* SSP1 */
 	GPIO23_SSP1_SCLK,
 	GPIO24_SSP1_SFRM,
 	GPIO25_SSP1_TXD,
 	GPIO26_SSP1_RXD,
 
-	/* SSP2 */
-	GPIO19_SSP2_SCLK,
-	GPIO14_SSP2_SFRM,
-	GPIO87_SSP2_TXD,
-	GPIO88_SSP2_RXD,
+	/* SSP3 */
+	GPIO35_SSP3_TXD,
+	GPIO34_SSP3_SCLK,
+	GPIO41_SSP3_RXD,
 
 	/* PWM */
 	GPIO16_PWM0_OUT,
 	GPIO17_PWM1_OUT,
 	GPIO11_PWM2_OUT,
 	GPIO12_PWM3_OUT,
-
-	/* USB */
-	GPIO89_USBH1_PEN,
-	GPIO120_USBH2_PEN,
 
 	/* SDRAM and local bus */
 	GPIO15_nCS_1,
@@ -219,93 +227,101 @@ static struct platform_device simcom_dm9000_device = {
 
 
 /****************************************************************/
-/*                            SPI							    */
+/*                            MCP2515						    */
 /****************************************************************/
-static struct pxa2xx_spi_master simcom_spi_port1_info = {
-	.num_chipselect	= 3,
-	.enable_dma		= 0,
-};
-
-static struct pxa2xx_spi_master simcom_spi_port2_info = {
-	.num_chipselect	= 3,
-	.enable_dma		= 0,
-};
-
-
-struct mcp2515_spi_platform_data simcom_mcp2515_pdata = {
+struct nacelle_can_platform_data simcom_nacelle_pdata = {
 	.cs_gpio = 24,
 	.reset_gpio = 94,
+	.irq_gpio = SIMCOM_MCP2515IRQ,
+};
+
+static struct platform_device simcom_nacelle_can_device = {
+	.name		= "nacelle_can",
+	.id			= 0,
+	.dev		= {
+		.platform_data	= &simcom_nacelle_pdata,
+	},
+	.num_resources = 0,
 };
 
 
-static struct spi_board_info simcom_spi_devices[] __initdata = {
-	{
-		.modalias		= "mcp2515",
-		.irq 			= SIMCOM_MCP2515IRQ,
-		.max_speed_hz	= 6000000,
-		.bus_num		= 1,
-		.chip_select	= 0,
-		.mode			= SPI_MODE_0,
-		.platform_data	= &simcom_mcp2515_pdata,
-	},
-	{
-		.modalias		= "adxl346",
-		.max_speed_hz	= 6000000,
-		.bus_num		= 1,
-		.chip_select	= 1,
-		.mode			= SPI_MODE_0,
-	},
-	{
-		.modalias		= "mcp3001",
-		.max_speed_hz	= 6000000,
-		.bus_num		= 1,
-		.chip_select	= 2,
-		.mode			= SPI_MODE_0,
-	},
-	{
-		.modalias		= "mcp3008",
-		.max_speed_hz	= 6000000,
-		.bus_num		= 2,
-		.chip_select	= 0,
-		.mode			= SPI_MODE_0,
-	},
-	{
-		.modalias		= "adis16135",
-		.max_speed_hz	= 6000000,
-		.bus_num		= 2,
-		.chip_select	= 1,
-		.mode			= SPI_MODE_0,
+
+/****************************************************************/
+/*                            MCP3002   					    */
+/****************************************************************/
+
+static struct resource simcom_mcp3002_resource[] = {
+	[0] = {
+		.start = MCP3002_CS,
+		.end   = MCP3002_CS,
+		.flags = IORESOURCE_IO,
 	},
 };
+
+static struct platform_device simcom_mcp3002_device = {
+	.name = "mcp3002",
+	.id	 = 0,
+	.dev = {
+		.platform_data	= &simcom_nacelle_pdata,
+	},
+	.num_resources = 1,
+	.resource = simcom_mcp3002_resource,
+};
+
+
+/****************************************************************/
+/*                            AD7799   					    	*/
+/****************************************************************/
+
+static struct resource simcom_ad7799_resource[] = {
+	[0] = {
+		.start = MCP3002_CS,
+		.end   = MCP3002_CS,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_ad7799_device = {
+	.name = "ad7799",
+	.id	 = 0,
+	.dev = {
+		.platform_data	= &simcom_nacelle_pdata,
+	},
+	.num_resources = 1,
+	.resource = simcom_ad7799_resource,
+};
+
+
 
 /***************************************************************/
-/*                           I2C                               */
+/*                           MMC                               */
 /***************************************************************/
-static struct i2c_board_info simcom_minesto_i2c_info[] = {
-	{
-		I2C_BOARD_INFO("m41t65", 0x68) /* Realtime Clock */
-	},
+static struct pxamci_platform_data simcom_mci_platform_data = {
+	.ocr_mask			= MMC_VDD_32_33 | MMC_VDD_33_34,
+	.gpio_card_detect	= NACELLE_MMCDETECT,
+	.gpio_card_ro = -1,
+	.detect_delay = 1*HZ,
 };
+
 
 
 static void __init simcom_init(void)
 {
 	/* Initialize NAND */
 	platform_device_register(&simcom_nand_device);
+
 	/* Initialize DM9000 */
 	platform_device_register(&simcom_dm9000_device);
-	/* Initialize SPI interfaces */
-	pxa2xx_set_spi_info(1, &simcom_spi_port1_info);
-	pxa2xx_set_spi_info(2, &simcom_spi_port2_info);
-	spi_register_board_info(ARRAY_AND_SIZE(simcom_spi_devices));
 
-	/* Initialize USB */
-#if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
-	pxa_set_ohci_info(&simcom_ohci_platform_data);
-#endif
+	/* Initialize CAN driver */
+	platform_device_register(&simcom_nacelle_can_device);
 
-	pxa_set_i2c_info(NULL);
-	i2c_register_board_info(0, ARRAY_AND_SIZE(simcom_minesto_i2c_info));
+	/* Initialize mcp3002 driver */
+	platform_device_register(&simcom_mcp3002_device);
+
+	/* Initialize card interface */
+	pxa_set_mci_info(&simcom_mci_platform_data);
+
 
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }

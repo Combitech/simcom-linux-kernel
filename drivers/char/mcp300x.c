@@ -7,6 +7,9 @@
 #include <linux/gpio.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <mach/ssp.h>
+#include <mach/regs-ssp.h>
+#include <linux/platform_device.h>
 
 MODULE_DESCRIPTION("Microchip MCP300x A/D Converters");
 MODULE_LICENSE("GPL");
@@ -17,7 +20,7 @@ MODULE_AUTHOR("David Kiland <david.kiland@combitech.se>");
 #define MCP3002		2
 #define MCP3008		8
 
-static const struct spi_device_id mcp300x_id[] = {
+static const struct platform_device_id mcp300x_id[] = {
 	{ "mcp3001", MCP3001 },
 	{ "mcp3002", MCP3002 },
 	{ "mcp3008", MCP3008 },
@@ -29,7 +32,7 @@ MODULE_DEVICE_TABLE(i2c, mcp300x_id);
 struct class *mcp300x_class;
 
 struct mcp300x_priv {
-	struct spi_device *spi_dev;
+	struct ssp_dev 	spi_dev;
 	int cs_gpio;
 	struct cdev cdev;
 	struct device *device;
@@ -38,28 +41,42 @@ struct mcp300x_priv {
 };
 
 
+static int spi_read_byte(struct ssp_dev *dev, u8 *data)
+{
+	u32 d = 0;
+
+	ssp_write_word(dev, 0xff);
+	ssp_read_word(dev, &d);
+	ssp_flush(dev);
+	*data = d;
+	return 0;
+}
+
+static int spi_write_byte(struct ssp_dev *dev, u8 data)
+{
+	ssp_write_word(dev, data);
+	ssp_flush(dev);
+	return 0;
+}
+
 
 static int read_mcp3008(struct mcp300x_priv *priv, u16 *values)
 {
 	u8 i;
-	struct spi_transfer xfer;
-	struct spi_message msg;
-	u8 tx[3];
 	u8 rx[3];
 
-
+	gpio_set_value(priv->cs_gpio, 0);
 	for(i=0; i<priv->no_of_channels; i++) {
-		spi_message_init(&msg);
-		tx[0] = 0x01;	// Startbit;
-		tx[1] = 0x80 | (i<<4);
-		tx[2] = 0;
-		xfer.tx_buf = &tx;
-		xfer.rx_buf = &rx;
-		xfer.len = 3;
-		spi_message_add_tail(&xfer, &msg);
-		spi_sync(priv->spi_dev, &msg);
+		spi_write_byte(&priv->spi_dev, 0x01);
+		spi_write_byte(&priv->spi_dev, 0x80 | (i<<4));
+		spi_write_byte(&priv->spi_dev, 0x00);
+		spi_read_byte(&priv->spi_dev, &rx[0]);
+		spi_read_byte(&priv->spi_dev, &rx[1]);
+		spi_read_byte(&priv->spi_dev, &rx[2]);
 		values[i] = ((rx[1]&0x7)<<8) | rx[2];
 	}
+
+	gpio_set_value(priv->cs_gpio, 1);
 
 	return (2*priv->no_of_channels);
 }
@@ -73,9 +90,12 @@ static int mcp300x_read_values(struct mcp300x_priv *priv, u16 *values)
 
 	switch(priv->no_of_channels) {
 	case 1:
-		spi_read(priv->spi_dev, rx, 2);
+		gpio_set_value(priv->cs_gpio, 0);
+		spi_read_byte(&priv->spi_dev, &rx[0]);
+		spi_read_byte(&priv->spi_dev, &rx[1]);
 		values[0] = (rx[0]<<8) | rx[1];
 		values[0] = (values[0]>>4)&0x3ff;
+		gpio_set_value(priv->cs_gpio, 1);
 		return 2;
 	case 2:
 	case 4:
@@ -138,26 +158,53 @@ static const struct file_operations mcp300x_ops = {
 	.release	= mcp300x_release,
 };
 
-static int __devinit mcp300x_probe(struct spi_device *spi)
+static int __devinit mcp300x_probe(struct platform_device *pdev)
 {
 	struct mcp300x_priv *priv;
-	struct spi_device_id *id;
+	struct platform_device_id *id;
+	struct resource *r;
 
-	dev_info(&spi->dev, "Probing mcp300x..\n");
+	dev_info(&pdev->dev, "Probing mcp300x..\n");
 
 	priv = kzalloc(sizeof(struct mcp300x_priv), GFP_KERNEL);
 	if (!priv) {
-		dev_err(&spi->dev, "Could not allocate memory\n");
+		dev_err(&pdev->dev, "Could not allocate memory\n");
 		return -ENOMEM;
 	}
 
-
 	/* Get no of channels */
-	id = (struct spi_device_id *)spi_get_device_id(spi);
+	id = (struct platform_device_id *)platform_get_device_id(pdev);
 	priv->no_of_channels = id->driver_data;
 
-	priv->spi_dev = spi;
-	dev_set_drvdata(&spi->dev, priv);
+	dev_set_drvdata(&pdev->dev, priv);
+
+	if(ssp_init(&priv->spi_dev, 3, SSP_NO_IRQ) == -ENODEV) {
+		printk("Could not allocate device\n");
+		goto exit_free;
+	}
+
+	ssp_disable(&priv->spi_dev);
+
+	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
+			SSCR1_TxTresh(1) | SSCR1_RxTresh(1),
+			0,
+			SSCR0_SCR & SSCR0_SerClkDiv(2));
+
+	ssp_enable(&priv->spi_dev);
+
+
+	/* Get chip select signal from platform resource */
+	r = platform_get_resource(pdev, IORESOURCE_IO, 0);
+	priv->cs_gpio = r->start;
+
+	if(gpio_request(priv->cs_gpio, "mcp300x chipselect") < 0) {
+		printk("Could not request chipselect pin for mcp300x\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->cs_gpio, 1);
+	gpio_set_value(priv->cs_gpio, 1);
+
 
 	alloc_chrdev_region(&priv->dev, 0, priv->no_of_channels, id->name);
 
@@ -170,14 +217,17 @@ static int __devinit mcp300x_probe(struct spi_device *spi)
 	printk(KERN_INFO "mcp300x device registered\n");
 
 	return 0;
+
+exit_free:
+	return -1;
 }
 
 
 
 
-static int __devexit mcp300x_remove(struct spi_device *spi)
+static int __devexit mcp300x_remove(struct platform_device *pdev)
 {
-	struct mcp300x_priv *priv = dev_get_drvdata(&spi->dev);
+	struct mcp300x_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	device_del(priv->device);
 	cdev_del(&priv->cdev);
@@ -186,7 +236,7 @@ static int __devexit mcp300x_remove(struct spi_device *spi)
 	return 0;
 }
 
-static struct spi_driver mcp300x_driver = {
+static struct platform_driver mcp300x_driver = {
 	.probe	= mcp300x_probe,
 	.remove	= mcp300x_remove,
 	.id_table = mcp300x_id,
@@ -205,12 +255,12 @@ static __init int mcp300x_init_module(void)
 		return -ENOMEM;
 	}
 
-	return spi_register_driver(&mcp300x_driver);
+	return platform_driver_register(&mcp300x_driver);
 }
 
 static __exit void mcp300x_cleanup_module(void)
 {
-	spi_unregister_driver(&mcp300x_driver);
+	platform_driver_unregister(&mcp300x_driver);
 }
 
 module_init(mcp300x_init_module);
