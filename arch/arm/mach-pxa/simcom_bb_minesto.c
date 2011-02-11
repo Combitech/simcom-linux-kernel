@@ -55,7 +55,7 @@
 #define SIMCOM_ETHIRQ		IRQ_GPIO(20)
 #define NACELLE_MMCDETECT	53
 
-#define MCP3002_CS			115
+#define MCP3002_CS			101
 
 
 #define DM9000_PHYS_BASE	(PXA_CS2_PHYS)
@@ -130,6 +130,7 @@ static unsigned long simcom_pin_config[] = {
 	GPIO35_SSP3_TXD,
 	GPIO34_SSP3_SCLK,
 	GPIO41_SSP3_RXD,
+
 
 	/* PWM */
 	GPIO16_PWM0_OUT,
@@ -250,6 +251,7 @@ static struct platform_device simcom_nacelle_can_device = {
 /*                            MCP3002   					    */
 /****************************************************************/
 
+/*
 static struct resource simcom_mcp3002_resource[] = {
 	[0] = {
 		.start = MCP3002_CS,
@@ -259,11 +261,27 @@ static struct resource simcom_mcp3002_resource[] = {
 };
 
 static struct platform_device simcom_mcp3002_device = {
-	.name = "mcp3002",
+	.name = "mcp3001",
 	.id	 = 0,
 	.dev = {
 		.platform_data	= &simcom_nacelle_pdata,
 	},
+	.num_resources = 1,
+	.resource = simcom_mcp3002_resource,
+};
+*/
+
+static struct resource simcom_mcp3002_resource[] = {
+	[0] = {
+		.start = 37,
+		.end   = 37,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_mcp3002_device = {
+	.name = "mcp3008",
+	.id	 = 0,
 	.num_resources = 1,
 	.resource = simcom_mcp3002_resource,
 };
@@ -275,8 +293,8 @@ static struct platform_device simcom_mcp3002_device = {
 
 static struct resource simcom_ad7799_resource[] = {
 	[0] = {
-		.start = MCP3002_CS,
-		.end   = MCP3002_CS,
+		.start = 81,
+		.end   = 81,
 		.flags = IORESOURCE_IO,
 	},
 };
@@ -284,12 +302,30 @@ static struct resource simcom_ad7799_resource[] = {
 static struct platform_device simcom_ad7799_device = {
 	.name = "ad7799",
 	.id	 = 0,
-	.dev = {
-		.platform_data	= &simcom_nacelle_pdata,
-	},
 	.num_resources = 1,
 	.resource = simcom_ad7799_resource,
 };
+
+
+/****************************************************************/
+/*                          ADIS16135					    	*/
+/****************************************************************/
+
+static struct resource simcom_adis16135_resource[] = {
+	[0] = {
+		.start = 9,
+		.end   = 9,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_adis16135_device = {
+	.name = "adis16135",
+	.id	 = 0,
+	.num_resources = 1,
+	.resource = simcom_adis16135_resource,
+};
+
 
 
 
@@ -317,7 +353,11 @@ static void __init simcom_init(void)
 	platform_device_register(&simcom_nacelle_can_device);
 
 	/* Initialize mcp3002 driver */
-	platform_device_register(&simcom_mcp3002_device);
+	//platform_device_register(&simcom_mcp3002_device);
+
+	//platform_device_register(&simcom_ad7799_device);
+
+	platform_device_register(&simcom_adis16135_device);
 
 	/* Initialize card interface */
 	pxa_set_mci_info(&simcom_mci_platform_data);

@@ -20,6 +20,9 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/ad77xx.h>
+#include <linux/platform_device.h>
+#include <mach/ssp.h>
+#include <mach/regs-ssp.h>
 
 
 MODULE_DESCRIPTION("Analog Devices AD7799/AD7798 3-channel Analog/Digital Converter");
@@ -36,8 +39,6 @@ MODULE_ALIAS("spi:ad77xx");
 #define AD77XX_STATUS_NOREF     	0x20
 #define AD77XX_STATUS_IS_AD7799 	0x08
 #define AD77XX_STATUS_CHAN_MASK 	0x07
-
-static u8 ad77xx_init_status;
 
 
 
@@ -94,11 +95,12 @@ enum { 	AD77XX_AIN1_CHAN = 0,
  * Private data structure
  */
 struct ad77xx_priv {
-	struct spi_device *spi_dev;
+	struct ssp_dev spi_dev;
 	int cs_gpio;
 	struct cdev cdev;
 	struct device *device;
 	dev_t dev;
+	u8 init_status;
 };
 
 static struct class *ad77xx_class = 0;
@@ -110,46 +112,107 @@ static struct class *ad77xx_class = 0;
  * @param read Is the next operation read?
  * @param cont Continuous mode
  */
-static inline void ad77xx_comm(struct spi_device *spi, u8 reg, u8 read, u8 cont)
+
+
+static int spi_read_byte(struct ad77xx_priv *priv, u8 output, u8 *data)
+{
+	u32 d = 0;
+
+
+	ssp_write_word(&priv->spi_dev, output);
+	ssp_read_word(&priv->spi_dev, &d);
+	ssp_flush(&priv->spi_dev);
+	*data = d;
+	return 0;
+}
+
+static int spi_write_byte(struct ad77xx_priv *priv, u8 data)
+{
+	ssp_write_word(&priv->spi_dev, data);
+	ssp_flush(&priv->spi_dev);
+	return 0;
+}
+
+
+static inline void ad77xx_comm(struct ad77xx_priv *priv, u8 reg, u8 read, u8 cont)
 {
 	u8 byte = (read ? 0x40 : 0x00) | (reg << 3) | (cont ? 0x04 : 0x00);
-	spi_write(spi, &byte, 1);
+	spi_write_byte(priv, byte);
 }
 
 
 /*
  * Read Status Register
  */
-static u8 ad77xx_status(struct spi_device *spi)
+static u8 ad77xx_status(struct ad77xx_priv *priv)
 {
 	u8 rx;
-	ad77xx_comm(spi, AD77XX_STATUS_REG, 1, 0);
 
-	spi_read(spi, &rx, 1);
+	ad77xx_comm(priv, AD77XX_STATUS_REG, 1, 0);
+
+	spi_read_byte(priv, 0xff, &rx);
+
 	return rx;
 }
+
+
+/*
+ * Read Status Register
+ */
+static u8 ad77xx_read_id(struct ad77xx_priv *priv)
+{
+	u8 rx;
+
+	ad77xx_comm(priv, AD77XX_ID_REG, 1, 0);
+
+	spi_read_byte(priv, 0xff, &rx);
+
+	printk("Device id is 0x%x\n", rx);
+
+	return rx;
+}
+
+
+/*
+ * Read Status Register
+ */
+static void ad77xx_reset(struct ad77xx_priv *priv)
+{
+
+	spi_write_byte(priv, 0xff);
+	spi_write_byte(priv, 0xff);
+	spi_write_byte(priv, 0xff);
+	spi_write_byte(priv, 0xff);
+	spi_write_byte(priv, 0xff);
+
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule_timeout(HZ/2);
+
+}
+
 
 /*
  * Read Offset Register
  */
-u32 ad77xx_read_offset(struct spi_device *spi)
+u32 ad77xx_read_offset(struct ad77xx_priv *priv)
 {
 	u8 rx;
 	u32 val = 0;
 
-	ad77xx_comm(spi, AD77XX_OFFSET_REG, 1, 0);
+	ad77xx_comm(priv, AD77XX_OFFSET_REG, 1, 0);
 
-	if(ad77xx_init_status & AD77XX_STATUS_IS_AD7799)
+	if(priv->init_status & AD77XX_STATUS_IS_AD7799)
 	{
-		spi_read(spi, &rx,1);
+		spi_read_byte(priv, 0xff, &rx);
 		val |= rx << 16;
 	}
 
-	spi_read(spi, &rx,1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx << 8;
 
-	spi_read(spi, &rx,1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx;
+
 
 	return val;
 }
@@ -157,24 +220,25 @@ u32 ad77xx_read_offset(struct spi_device *spi)
 /*
  * Read Full Scale Register
  */
-u32 ad77xx_read_scale(struct spi_device *spi)
+u32 ad77xx_read_scale(struct ad77xx_priv *priv)
 {
 	u32 val = 0;
 	u8 rx;
 
-	ad77xx_comm(spi, AD77XX_SCALE_REG, 1, 0);
+	ad77xx_comm(priv, AD77XX_SCALE_REG, 1, 0);
 
-	if(ad77xx_init_status & AD77XX_STATUS_IS_AD7799)
+	if(priv->init_status & AD77XX_STATUS_IS_AD7799)
 	{
-		spi_read(spi, &rx,1);
+		spi_read_byte(priv, 0xff, &rx);
 		val |= rx << 16;
 	}
 
-	spi_read(spi, &rx,1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx << 8;
 
-	spi_read(spi, &rx,1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx;
+
 
 	return val;
 }
@@ -186,16 +250,15 @@ u32 ad77xx_read_scale(struct spi_device *spi)
  * @param pwd Power Switch bit
  * @param rate Update rate
  */
-static void ad77xx_set_mode(struct spi_device *spi, u8 mode, u8 psw, u8 rate)
+static void ad77xx_set_mode(struct ad77xx_priv *priv, u8 mode, u8 psw, u8 rate)
 {
 	u8 tx;
 
-    ad77xx_comm(spi, AD77XX_MODE_REG, 0, 0);
+    ad77xx_comm(priv, AD77XX_MODE_REG, 0, 0);
 
 	tx = mode << 5 | (psw ? 0x10 : 0x00);
-    spi_write(spi, &tx, 1);
-
-    spi_write(spi, &rate, 1);
+    spi_write_byte(priv, tx);
+	spi_write_byte(priv, rate);
 }
 
 /*
@@ -208,19 +271,19 @@ static void ad77xx_set_mode(struct spi_device *spi, u8 mode, u8 psw, u8 rate)
  * @param buf ADC Buffered mode
  * @param chan Channel select bit
  */
-void ad77xx_write_config(	struct spi_device *spi,
+void ad77xx_write_config(	struct ad77xx_priv *priv,
 							u8 burnout, u8 unipolar, u8 gain,
 							u8 ref_det, u8 buf, u8 chan)
 {
 	u8 tx;
 
-	ad77xx_comm(spi, AD77XX_CONFIG_REG, 0, 1);
+	ad77xx_comm(priv, AD77XX_CONFIG_REG, 0, 1);
 
-	tx = ((burnout ? 0x40 : 0x00) | (unipolar ? 0x20 : 0x00) | gain);
-	spi_write(spi, &tx, 1);
+	tx = ((burnout ? 0x20 : 0x00) | (unipolar ? 0x10 : 0x00) | gain);
+	spi_write_byte(priv, tx);
 
 	tx = ((ref_det ? 0x20 : 0x00) | (buf ? 0x10 : 0x00) | chan);
-	spi_write(spi, &tx, 1);
+	spi_write_byte(priv, tx);
 }
 
 
@@ -229,9 +292,25 @@ void ad77xx_write_config(	struct spi_device *spi,
  *
  *@param continuous Continuous reading
  */
-void ad77xx_request_data(struct spi_device *spi, u8 continuous)
+void ad77xx_request_data(struct ad77xx_priv *priv, u8 continuous)
 {
-	ad77xx_comm(spi, AD77XX_DATA_REG, 1, continuous);
+	ad77xx_comm(priv, AD77XX_DATA_REG, 1, continuous);
+}
+
+
+
+/*
+ * Determine if data is ready to be read
+ *
+ */
+u8 ad77xx_data_ready(struct ad77xx_priv *priv)
+{
+	u8 status;
+
+	status = ad77xx_status(priv);
+	status &= AD77XX_STATUS_RDY;
+
+	return !status;
 }
 
 
@@ -239,70 +318,57 @@ void ad77xx_request_data(struct spi_device *spi, u8 continuous)
  *   from ad77xx_request_data. The value is signed!!
  *
  */
-s32 ad77xx_read_data(struct spi_device *spi)
+s32 ad77xx_read_data(struct ad77xx_priv *priv)
 {
 	s32 val = 0;
 	u8 rx;
 
-	if(ad77xx_init_status & AD77XX_STATUS_IS_AD7799)
-	{
-		spi_read(spi, &rx, 1);
+	//while(!ad77xx_data_ready(priv));
+
+	//if(priv->init_status & AD77XX_STATUS_IS_AD7799)
+	//{
+		spi_read_byte(priv, 0xff, &rx);
 		val = rx;
 		val <<= 8;
-	}
+	//}
 
-	spi_read(spi, &rx, 1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx;
 	val <<= 8;
 
-	spi_read(spi, &rx, 1);
+	spi_read_byte(priv, 0xff, &rx);
 	val |= rx;
 
-
-	if(ad77xx_init_status & AD77XX_STATUS_IS_AD7799)
-		return val - 0x800000;
-
-	return val - 0x8000;
+	return val;
 
 }
 
 
-/*
- * Determine if data is ready to be read
- *
- */
-u8 ad77xx_data_ready(struct spi_device *spi)
-{
-	u8 status;
-
-	status = ad77xx_status(spi);
-	status &= AD77XX_STATUS_RDY;
-
-	return !status;
-}
 
 /*
  * Calibrate device
  */
-void ad77xx_calibrate(struct spi_device *spi)
+void ad77xx_calibrate(struct ad77xx_priv *priv)
 {
-	u32 off = ad77xx_read_offset(spi);
-	dev_info(&spi->dev, "ad77xx: offset: 0x%x\n", off);
+	u32 off = ad77xx_read_offset(priv);
+	printk("ad77xx: offset: 0x%x\n", off);
 
 	/* cal */
-	ad77xx_set_mode(spi, AD77XX_INTERNAL_OFFSET_CAL_MODE, 0, AD77XX_16_7_1_HZ);
+	ad77xx_set_mode(priv, AD77XX_INTERNAL_OFFSET_CAL_MODE, 0, AD77XX_470_HZ);
+
 	//while(!ad77xx_data_ready(spi));
 
-	off = ad77xx_read_offset(spi);
-	dev_info(&spi->dev, "offset: 0x%x\n", off);
+	off = ad77xx_read_offset(priv);
+	printk("offset: 0x%x\n", off);
 }
 
 /*
  * Initialize AD77XX
  */
-void ad77xx_init(struct spi_device *spi)
+void ad77xx_init(struct ad77xx_priv *priv)
 {
-   ad77xx_init_status = ad77xx_status(spi);
+	priv->init_status = ad77xx_status(priv);
+	printk("Init status is %x\n", priv->init_status);
 }
 
 /*
@@ -321,15 +387,19 @@ int ad77xx_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsig
 			ret = -ENOMEM;
 		}
 
+		gpio_set_value(priv->cs_gpio, 0);
 		/* Tell the chip wich register we want to deal with */
-		ad77xx_comm(priv->spi_dev, data[0], 0, 0);
+		ad77xx_comm(priv, data[0], 0, 0);
 
 		/* 16bit register? */
-		if(data[0] == AD77XX_MODE_REG || data[0] == AD77XX_CONFIG_REG)
-			spi_write(priv->spi_dev, data + 1, 2);
-		else
-			spi_write(priv->spi_dev, data + 1, 1);
-
+		if(data[0] == AD77XX_MODE_REG || data[0] == AD77XX_CONFIG_REG) {
+			spi_write_byte(priv, data[1]);
+			spi_write_byte(priv, data[2]);
+		}
+		else {
+			spi_write_byte(priv, data[1]);
+		}
+		gpio_set_value(priv->cs_gpio, 1);
 		break;
 
 	case AD77XX_READ_REGISTER:
@@ -337,14 +407,21 @@ int ad77xx_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsig
 			ret = -ENOMEM;
 		}
 
+		gpio_set_value(priv->cs_gpio, 0);
 		/* Tell the chip wich register we want to deal with */
-		ad77xx_comm(priv->spi_dev, data[0], 1, 0);
+		ad77xx_comm(priv, data[0], 1, 0);
 
 		/* 16bit register? */
-		if(data[0] == AD77XX_MODE_REG || data[0] == AD77XX_CONFIG_REG)
-			spi_read(priv->spi_dev, &ret, 2);
-		else
-			spi_read(priv->spi_dev, &ret, 1);
+		if(data[0] == AD77XX_MODE_REG || data[0] == AD77XX_CONFIG_REG) {
+			spi_read_byte(priv, 0xff, &data[0]);
+			spi_read_byte(priv, 0xff, &data[1]);
+			ret = (data[1]<<8) | data[0];
+		}
+		else {
+			spi_read_byte(priv, 0xff, &data[0]);
+			ret = data[0];
+		}
+		gpio_set_value(priv->cs_gpio, 1);
 		break;
 
 	default:
@@ -365,9 +442,11 @@ static ssize_t ad77xx_read(struct file *file, char __user *buf, size_t count, lo
 		return 0;
 	}
 
-
-	ad77xx_request_data(priv->spi_dev,1);
-	val = ad77xx_read_data(priv->spi_dev);
+	gpio_set_value(priv->cs_gpio, 0);
+	ad77xx_request_data(priv, 1);
+	while(gpio_get_value(41));
+	val = ad77xx_read_data(priv);
+	gpio_set_value(priv->cs_gpio, 1);
 
 	if(copy_to_user(buf, &val, 4)) {
 		return 0;
@@ -399,12 +478,13 @@ static const struct file_operations ad77xx_ops = {
 	.ioctl		= ad77xx_ioctl,
 };
 
-static int __devinit ad77xx_probe(struct spi_device *spi)
+static int __devinit ad77xx_probe(struct platform_device *pdev)
 {
 	struct ad77xx_priv *priv;
 	int err;
+	struct resource *r;
 
-	dev_info(&spi->dev, "Probing ad77xx..\n");
+	printk(KERN_INFO "Probing ad77xx..\n");
 
 	priv = kzalloc(sizeof(struct ad77xx_priv), GFP_KERNEL);
 
@@ -413,29 +493,66 @@ static int __devinit ad77xx_probe(struct spi_device *spi)
 		goto exit_free;
 	}
 
+
+	dev_set_drvdata(&pdev->dev, priv);
+
+	if(ssp_init(&priv->spi_dev, 3, SSP_NO_IRQ) == -ENODEV) {
+		printk("Could not allocate device\n");
+		goto exit_free;
+	}
+
+	ssp_disable(&priv->spi_dev);
+
+	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
+			SSCR1_TxTresh(1) | SSCR1_RxTresh(1) | SSCR1_SPO | SSCR1_SPH,
+			0,
+			SSCR0_SCR & SSCR0_SerClkDiv(6));
+
+	ssp_enable(&priv->spi_dev);
+
+
+	/* Get chip select signal from platform resource */
+	r = platform_get_resource(pdev, IORESOURCE_IO, 0);
+	priv->cs_gpio = r->start;
+	printk("Chipselect on gpio%i\n", priv->cs_gpio);
+
+	if(gpio_request(priv->cs_gpio, "mcp300x chipselect") < 0) {
+		printk("Could not request chipselect pin for mcp300x\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->cs_gpio, 1);
+	gpio_set_value(priv->cs_gpio, 1);
+
+
 	/* Initialize spi and read device id */
 
-	dev_info(&spi->dev, "Initialize..\n");
-	ad77xx_init(spi);
+	gpio_set_value(priv->cs_gpio, 0);
 
-	dev_info(&spi->dev, "Calibrate..\n");
-	ad77xx_calibrate(spi);
+	ad77xx_reset(priv);
 
-	dev_info(&spi->dev, "Set mode..\n");
-	ad77xx_set_mode(spi, AD77XX_CONTINUOUS_CONVERSION_MODE, 0, AD77XX_16_7_1_HZ);
+	ad77xx_read_id(priv);
 
-	dev_info(&spi->dev, "Writing config..\n");
-	ad77xx_write_config(spi,
-						0,					/* No burn out */
-						1,					/* Unipolar */
-						AD77XX_1_GAIN,		/* 1 Gain */
-						0,					/* No reference detection */
-						1,					/* Buffered */
-						AD77XX_AIN1_CHAN	/* AIN1 Channel */
-						);
+	dev_info(&pdev->dev, "Initialize..\n");
+	ad77xx_init(priv);
 
-	priv->spi_dev = spi;
-	dev_set_drvdata(&spi->dev, priv);
+	dev_info(&pdev->dev, "Set mode..\n");
+	ad77xx_set_mode(priv, AD77XX_CONTINUOUS_CONVERSION_MODE, 0, AD77XX_470_HZ);
+
+	dev_info(&pdev->dev, "Calibrate..\n");
+	//ad77xx_calibrate(priv);
+
+	dev_info(&pdev->dev, "Writing config..\n");
+	ad77xx_write_config(priv,
+			0,					/* No burn out */
+			1,					/* Unipolar */
+			AD77XX_1_GAIN,		/* 1 Gain */
+			0,					/* No reference detection */
+			1,					/* Buffered */
+			AD77XX_AIN1_CHAN	/* AIN1 Channel */
+	);
+
+	gpio_set_value(priv->cs_gpio, 1);
 
 
 	alloc_chrdev_region(&priv->dev, 0, 1, "ad77xx");
@@ -446,7 +563,7 @@ static int __devinit ad77xx_probe(struct spi_device *spi)
 	cdev_add(&priv->cdev, priv->dev, 1);
 	priv->device = device_create(ad77xx_class, NULL, priv->dev, NULL, "ad77xx");
 
-	dev_info(&spi->dev, "ad77xx device registered\n");
+	dev_info(&pdev->dev, "ad77xx device registered\n");
 
 	return 0;
 
@@ -456,10 +573,10 @@ exit_free:
 }
 
 
-static int __devexit ad77xx_remove(struct spi_device *spi)
+static int __devexit ad77xx_remove(struct platform_device *pdev)
 {
 
-	struct ad77xx_priv *priv = dev_get_drvdata(&spi->dev);
+	struct ad77xx_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	device_del(priv->device);
 	cdev_del(&priv->cdev);
@@ -469,11 +586,11 @@ static int __devexit ad77xx_remove(struct spi_device *spi)
 	return 0;
 }
 
-static struct spi_driver ad77xx_driver = {
+static struct platform_driver ad77xx_driver = {
 	.probe	= ad77xx_probe,
 	.remove	= ad77xx_remove,
 	.driver = {
-		.name	= "ad77xx",
+		.name	= "ad7799",
 		.owner	= THIS_MODULE,
 	},
 };
@@ -487,12 +604,12 @@ static int ad77xx_init_module(void)
 		return -ENOMEM;
 	}
 
-	return spi_register_driver(&ad77xx_driver);
+	return platform_driver_register(&ad77xx_driver);
 }
 
 static void ad77xx_cleanup_module(void)
 {
-	spi_unregister_driver(&ad77xx_driver);
+	platform_driver_unregister(&ad77xx_driver);
 }
 
 module_init(ad77xx_init_module);

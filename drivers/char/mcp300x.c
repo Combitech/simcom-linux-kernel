@@ -41,11 +41,11 @@ struct mcp300x_priv {
 };
 
 
-static int spi_read_byte(struct ssp_dev *dev, u8 *data)
+static int spi_read_byte(struct ssp_dev *dev, u8 output, u8 *data)
 {
 	u32 d = 0;
 
-	ssp_write_word(dev, 0xff);
+	ssp_write_word(dev, output);
 	ssp_read_word(dev, &d);
 	ssp_flush(dev);
 	*data = d;
@@ -65,18 +65,22 @@ static int read_mcp3008(struct mcp300x_priv *priv, u16 *values)
 	u8 i;
 	u8 rx[3];
 
-	gpio_set_value(priv->cs_gpio, 0);
+
+
 	for(i=0; i<priv->no_of_channels; i++) {
+		values[i] = 0;
+		gpio_set_value(priv->cs_gpio, 0);
 		spi_write_byte(&priv->spi_dev, 0x01);
-		spi_write_byte(&priv->spi_dev, 0x80 | (i<<4));
-		spi_write_byte(&priv->spi_dev, 0x00);
-		spi_read_byte(&priv->spi_dev, &rx[0]);
-		spi_read_byte(&priv->spi_dev, &rx[1]);
-		spi_read_byte(&priv->spi_dev, &rx[2]);
-		values[i] = ((rx[1]&0x7)<<8) | rx[2];
+		spi_read_byte(&priv->spi_dev, 0x80 | (i<<4), &rx[0]);
+		spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
+		values[i] = ((rx[0]&0x3)<<8) | rx[1];
+		gpio_set_value(priv->cs_gpio, 1);
+		printk("Read ch %i: %i\n", i, values[i]);
+
 	}
 
-	gpio_set_value(priv->cs_gpio, 1);
+
+
 
 	return (2*priv->no_of_channels);
 }
@@ -91,11 +95,11 @@ static int mcp300x_read_values(struct mcp300x_priv *priv, u16 *values)
 	switch(priv->no_of_channels) {
 	case 1:
 		gpio_set_value(priv->cs_gpio, 0);
-		spi_read_byte(&priv->spi_dev, &rx[0]);
-		spi_read_byte(&priv->spi_dev, &rx[1]);
-		values[0] = (rx[0]<<8) | rx[1];
-		values[0] = (values[0]>>4)&0x3ff;
+		spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+		spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
+		values[0] = ((rx[0]&0x1f)<<5) | (((rx[1]&0xf8)>>3)&0x1f);
 		gpio_set_value(priv->cs_gpio, 1);
+		printk("Read value %i\n", values[0]);
 		return 2;
 	case 2:
 	case 4:
@@ -115,7 +119,7 @@ static ssize_t mcp300x_read(struct file *file, char __user *buf, size_t count, l
 	u16 val[8];
 	struct mcp300x_priv *priv = file->private_data;
 	int size;
-
+	printk("read mcp300x\n");
 	if(count < (priv->no_of_channels*2)) {
 		/* Must read all A/D values */
 		return 0;
@@ -188,7 +192,7 @@ static int __devinit mcp300x_probe(struct platform_device *pdev)
 	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
 			SSCR1_TxTresh(1) | SSCR1_RxTresh(1),
 			0,
-			SSCR0_SCR & SSCR0_SerClkDiv(2));
+			SSCR0_SCR & SSCR0_SerClkDiv(6));
 
 	ssp_enable(&priv->spi_dev);
 
@@ -196,6 +200,7 @@ static int __devinit mcp300x_probe(struct platform_device *pdev)
 	/* Get chip select signal from platform resource */
 	r = platform_get_resource(pdev, IORESOURCE_IO, 0);
 	priv->cs_gpio = r->start;
+	printk("Chipselect on gpio%i\n", priv->cs_gpio);
 
 	if(gpio_request(priv->cs_gpio, "mcp300x chipselect") < 0) {
 		printk("Could not request chipselect pin for mcp300x\n");
@@ -248,7 +253,7 @@ static struct platform_driver mcp300x_driver = {
 
 static __init int mcp300x_init_module(void)
 {
-	mcp300x_class = class_create(THIS_MODULE, "adxl");
+	mcp300x_class = class_create(THIS_MODULE, "mcp300x");
 
 	if(mcp300x_class == NULL) {
 		printk("Could not create class counter\n");
