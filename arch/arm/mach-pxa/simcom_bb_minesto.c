@@ -56,6 +56,8 @@
 #define NACELLE_MMCDETECT	53
 
 #define MCP3002_CS			101
+#define PIC16_CS			52
+#define ADXL34X_CS			106
 
 
 #define DM9000_PHYS_BASE	(PXA_CS2_PHYS)
@@ -100,6 +102,7 @@ static unsigned long simcom_pin_config[] = {
 	GPIO75_LCD_LCLK,
 	GPIO76_LCD_PCLK,
 	GPIO77_LCD_BIAS,
+
 
 	/* I2C */
 	GPIO117_I2C_SCL,
@@ -150,6 +153,8 @@ static unsigned long simcom_pin_config[] = {
 
 	/* DM9000 */
 	GPIO21_nSDCS_3,
+
+	GPIO52_GPIO,
 
 };
 
@@ -327,6 +332,48 @@ static struct platform_device simcom_adis16135_device = {
 };
 
 
+/****************************************************************/
+/*                          PIC16					    	*/
+/****************************************************************/
+
+static struct resource simcom_pic16_resource[] = {
+	[0] = {
+		.start = PIC16_CS,
+		.end   = PIC16_CS,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_pic16_device = {
+	.name = "pic_pwm",
+	.id	 = 0,
+	.num_resources = 1,
+	.resource = simcom_pic16_resource,
+};
+
+
+
+/****************************************************************/
+/*                          ADXL346					    	*/
+/****************************************************************/
+
+static struct resource simcom_adxl_resource[] = {
+	[0] = {
+		.start = ADXL34X_CS,
+		.end   = ADXL34X_CS,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_adxl_device = {
+	.name = "adxl34x",
+	.id	 = 0,
+	.num_resources = 1,
+	.resource = simcom_adxl34x_resource,
+};
+
+
+
 
 
 /***************************************************************/
@@ -357,7 +404,11 @@ static void __init simcom_init(void)
 
 	//platform_device_register(&simcom_ad7799_device);
 
-	platform_device_register(&simcom_adis16135_device);
+	//platform_device_register(&simcom_adis16135_device);
+
+	platform_device_register(&simcom_pic16_device);
+
+	//platform_device_register(&simcom_adxl_device);
 
 	/* Initialize card interface */
 	pxa_set_mci_info(&simcom_mci_platform_data);

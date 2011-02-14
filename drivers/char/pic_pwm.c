@@ -1,3 +1,4 @@
+
 /*
  *  pic_pwm.c
  *
@@ -19,6 +20,10 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/device.h>
+#include <mach/ssp.h>
+#include <mach/regs-ssp.h>
+#include <linux/platform_device.h>
+
 
 MODULE_DESCRIPTION("Driver for a PIC Microcontroller connected to Nacelle used for PWM measurement");
 MODULE_LICENSE("GPL");
@@ -30,14 +35,35 @@ MODULE_ALIAS("spi:pic_pwm");
 
 
 struct pic_priv {
-	struct spi_dev *spi_dev;
+	struct ssp_dev *spi_dev;
 	int cs_gpio;
 	struct cdev cdev;
 	struct device *device;
 	dev_t dev;
 };
 
-static struct class *pic_class = 0;
+
+
+struct class *pic_class;
+
+static int spi_read_byte(struct ssp_dev *dev, u8 output, u8 *data)
+{
+	u32 d = 0;
+
+	ssp_write_word(dev, output);
+	ssp_read_word(dev, &d);
+	ssp_flush(dev);
+	*data = d;
+	return 0;
+}
+
+static int spi_write_byte(struct ssp_dev *dev, u8 data)
+{
+	ssp_write_word(dev, data);
+	ssp_flush(dev);
+	return 0;
+}
+
 
 
 static ssize_t pic_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
@@ -52,14 +78,38 @@ static ssize_t pic_read(struct file *file, char __user *buf, size_t count, loff_
 		return 0;
 	}
 
-	tx[0] = CMD_GET;
-	spi_write_then_read(priv->spi_dev, tx, 1, rx, 5);
+
+	gpio_set_value(priv->cs_gpio, 0);
+	spi_write_byte(&priv->spi_dev, CMD_GET);
+	//spi_read_byte(&priv->spi_dev, CMD_GET, &rx[0]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);	/* The pic isnt fast enough? */
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[2]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[3]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[4]);
+
+	gpio_set_value(priv->cs_gpio, 1);
+
+	printk("Read from pic: 0x%x 0x%x 0x%x 0x%x 0x%x\n", rx[0],rx[1],rx[2],rx[3],rx[4]);
 
 	if(copy_to_user(buf, rx, 5)) {
 		return 0;
 	}
 
 	return 5;
+}
+
+
+
+static ssize_t pic_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct pic_priv *priv = file->private_data;
+
+
+
+
+	return count;
 }
 
 
@@ -80,39 +130,68 @@ static int pic_release(struct inode *inode, struct file *file)
 static const struct file_operations pic_ops = {
 	.owner		= THIS_MODULE,
 	.read		= pic_read,
+	.write		= pic_write,
 	.open		= pic_open,
 	.release	= pic_release,
 };
 
-
-
-static int pic_probe(struct spi_device *spi)
+static int __devinit pic_probe(struct platform_device *pdev)
 {
 	struct pic_priv *priv;
 	int err;
+	struct resource *r;
 
-	dev_info(&spi->dev, "Probing pic_pwm device\n");
+	dev_info(&pdev->dev, "Probing pic..\n");
 
 	priv = kzalloc(sizeof(struct pic_priv), GFP_KERNEL);
-	if(priv == NULL)
-	{
+
+	if (!priv) {
 		err = -ENOMEM;
 		goto exit_free;
 	}
 
-	priv->spi_dev = spi;
-	dev_set_drvdata(&spi->dev, priv);
+	/* Initialize spi and read device id */
+	dev_set_drvdata(&pdev->dev, priv);
+
+	if(ssp_init(&priv->spi_dev, 3, SSP_NO_IRQ) == -ENODEV) {
+		printk("Could not allocate device\n");
+		goto exit_free;
+	}
+
+	ssp_disable(&priv->spi_dev);
+
+	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
+			SSCR1_TxTresh(1) | SSCR1_RxTresh(1) | SSCR1_SPO | SSCR1_SPH,
+			0,
+			SSCR0_SCR & SSCR0_SerClkDiv(128));
+
+	ssp_enable(&priv->spi_dev);
 
 
-	alloc_chrdev_region(&priv->dev, 0, 1, "pic_pwm");
+	/* Get chip select signal from platform resource */
+	r = platform_get_resource(pdev, IORESOURCE_IO, 0);
+	priv->cs_gpio = r->start;
+	printk("Chipselect on gpio%i\n", priv->cs_gpio);
+
+	if(gpio_request(priv->cs_gpio, "PIC chipselect") < 0) {
+		printk("Could not request chipselect pin for PIC\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->cs_gpio, 1);
+	gpio_set_value(priv->cs_gpio, 1);
+
+
+
+	alloc_chrdev_region(&priv->dev, 0, 1, "pic");
 	cdev_init(&priv->cdev, &pic_ops);
 	priv->cdev.owner = THIS_MODULE;
 	priv->cdev.ops = &pic_ops;
 
 	cdev_add(&priv->cdev, priv->dev, 1);
-	priv->device = device_create(pic_class, NULL, priv->dev, NULL, "pic_pwm");
+	priv->device = device_create(pic_class, NULL, priv->dev, NULL, "pic");
 
-	dev_info(&spi->dev, "pic_pwm device registered\n");
+	dev_info(&pdev->dev, "pic device registered\n");
 
 	return 0;
 
@@ -121,52 +200,48 @@ exit_free:
 	return err;
 }
 
-static int pic_remove(struct spi_device *spi)
-{
 
-	struct pic_priv *priv = dev_get_drvdata(&spi->dev);
+
+
+static int __devexit pic_remove(struct platform_device *pdev)
+{
+	struct pic_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	device_del(priv->device);
 	cdev_del(&priv->cdev);
 	unregister_chrdev_region(priv->dev, 1);
 
-	class_destroy(pic_class);
 	return 0;
 }
 
-
-static struct spi_driver pic_driver = {
-		.probe		= pic_probe,
-		.remove		= pic_remove,
-		.driver		= {
-						.name = "pic_pwm",
-						.owner = THIS_MODULE,
-		},
+static struct platform_driver pic_driver = {
+	.probe	= pic_probe,
+	.remove	= pic_remove,
+	.driver = {
+		.name	= "pic_pwm",
+		.owner	= THIS_MODULE,
+	},
 };
 
-
-static  int pic_module_init()
+static __init int pic_init_module(void)
 {
-	pic_class = class_create(THIS_MODULE, "pic_pwm");
+	pic_class = class_create(THIS_MODULE, "pic");
 
-	if(pic_class == NULL)
-	{
-		printk("pic_pwm: Could not create class");
+	if(pic_class == NULL) {
+		printk("Could not create class pic\n");
 		return -ENOMEM;
 	}
 
-	return spi_register_driver(&pic_driver);
+	return platform_driver_register(&pic_driver);
 }
 
-static  void pic_module_exit()
+static __exit void pic_cleanup_module(void)
 {
-	spi_unregister_driver(&pic_driver);
+	platform_driver_unregister(&pic_driver);
 }
 
-module_init(pic_module_init);
-module_exit(pic_module_exit);
+module_init(pic_init_module);
+module_exit(pic_cleanup_module);
 
-
-
-
+MODULE_ALIAS("spi:pic");
 

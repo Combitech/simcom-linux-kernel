@@ -112,6 +112,7 @@ static int adxl34x_read_id(struct adxl34x_priv *priv)
 
 	tx[0] = READ_SINGLE | DEVID;
 	spi_write_byte(&priv->spi_dev, tx[0]);
+	spi_read_byte(&priv->spi_dev, rx[0]);
 	//spi_write_then_read(priv->spi_dev, tx, 1, rx, 1);
 	return rx[0];
 }
@@ -122,6 +123,9 @@ static int adxl34x_read_reg(struct adxl34x_priv *priv, u8 reg)
 	u8 rx[1];
 
 	tx[0] = READ_SINGLE | reg;
+
+	spi_write_byte(&priv->spi_dev, tx[0]);
+	spi_read_byte(&priv->spi_dev, rx[0]);
 	//spi_write_then_read(priv->spi_dev, tx, 1, rx, 1);
 	return rx[0];
 }
@@ -140,6 +144,14 @@ static ssize_t adxl34x_read(struct file *file, char __user *buf, size_t count, l
 	}
 
 	tx[0] = READ_MULT | DATAX0;
+
+	spi_write_byte(&priv->spi_dev, tx[0]);
+	spi_read_byte(&priv->spi_dev, rx[0]);
+	spi_read_byte(&priv->spi_dev, rx[1]);
+	spi_read_byte(&priv->spi_dev, rx[2]);
+	spi_read_byte(&priv->spi_dev, rx[3]);
+	spi_read_byte(&priv->spi_dev, rx[4]);
+	spi_read_byte(&priv->spi_dev, rx[5]);
 	//spi_write_then_read(priv->spi_dev, tx, 1, rx, 6);
 
 	if(copy_to_user(buf, rx, 6)) {
@@ -166,6 +178,10 @@ static ssize_t adxl34x_write(struct file *file, const char __user *buf, size_t c
 
 	tx[0] = WRITE_SINGLE | inbuf[0];
 	tx[1] = inbuf[1];
+
+
+	spi_write_byte(&priv->spi_dev, tx[0]);
+	spi_write_byte(&priv->spi_dev, tx[1]);
 	//spi_write(priv->spi_dev, tx, 2);
 
 
