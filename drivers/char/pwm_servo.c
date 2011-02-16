@@ -169,6 +169,7 @@ static int pwm_servo_init_module(void)
 	int status;
 
 	status = class_register(&pwm_class);
+	printk("Register PWM module\n");
 
 	if(status < 0) {
 		return status;

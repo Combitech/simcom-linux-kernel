@@ -58,6 +58,8 @@
 #define MCP3002_CS			101
 #define PIC16_CS			52
 #define ADXL34X_CS			106
+#define HCPL_CS				40
+#define HCPL_CHN			107
 
 
 #define DM9000_PHYS_BASE	(PXA_CS2_PHYS)
@@ -154,7 +156,17 @@ static unsigned long simcom_pin_config[] = {
 	/* DM9000 */
 	GPIO21_nSDCS_3,
 
+	/* Chip selects */
 	GPIO52_GPIO,
+	GPIO40_GPIO,
+	GPIO107_GPIO,
+
+	/* PWM */
+	GPIO16_PWM0_OUT,
+	GPIO17_PWM1_OUT,
+	GPIO11_PWM2_OUT,
+
+
 
 };
 
@@ -354,7 +366,7 @@ static struct platform_device simcom_pic16_device = {
 
 
 /****************************************************************/
-/*                          ADXL346					    	*/
+/*                          ADXL346					    		*/
 /****************************************************************/
 
 static struct resource simcom_adxl_resource[] = {
@@ -369,7 +381,32 @@ static struct platform_device simcom_adxl_device = {
 	.name = "adxl34x",
 	.id	 = 0,
 	.num_resources = 1,
-	.resource = simcom_adxl34x_resource,
+	.resource = simcom_adxl_resource,
+};
+
+
+/****************************************************************/
+/*                          HCPL-0872					    	*/
+/****************************************************************/
+
+static struct resource simcom_hcpl_resource[] = {
+	[0] = {
+		.start = HCPL_CS,
+		.end   = HCPL_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = HCPL_CHN,
+		.end   = HCPL_CHN,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device simcom_hcpl_device = {
+	.name = "hcpl0872",
+	.id	 = 0,
+	.num_resources = 2,
+	.resource = simcom_hcpl_resource,
 };
 
 
@@ -406,9 +443,11 @@ static void __init simcom_init(void)
 
 	//platform_device_register(&simcom_adis16135_device);
 
-	platform_device_register(&simcom_pic16_device);
+	//platform_device_register(&simcom_pic16_device);
 
 	//platform_device_register(&simcom_adxl_device);
+
+	platform_device_register(&simcom_hcpl_device);
 
 	/* Initialize card interface */
 	pxa_set_mci_info(&simcom_mci_platform_data);

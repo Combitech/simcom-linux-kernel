@@ -32,6 +32,7 @@ MODULE_ALIAS("spi:pic_pwm");
 
 /* Command to recieve measures */
 #define	CMD_GET 0xAB
+#define GET_ACK 0xCD
 
 
 struct pic_priv {
@@ -69,8 +70,9 @@ static int spi_write_byte(struct ssp_dev *dev, u8 data)
 static ssize_t pic_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
 
-	u8 rx[5];
+	u8 rx[11];
 	u8 tx[1];
+	u8 tries = 0;
 
 	struct pic_priv *priv = file->private_data;
 
@@ -79,21 +81,31 @@ static ssize_t pic_read(struct file *file, char __user *buf, size_t count, loff_
 	}
 
 
+
 	gpio_set_value(priv->cs_gpio, 0);
 	spi_write_byte(&priv->spi_dev, CMD_GET);
-	//spi_read_byte(&priv->spi_dev, CMD_GET, &rx[0]);
-	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);	/* The pic isnt fast enough? */
-	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+
+	for(; tries < 3; tries++)
+	{
+		spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+		if(rx[0] == GET_ACK)
+			break;
+	}
+
 	spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
 	spi_read_byte(&priv->spi_dev, 0xff, &rx[2]);
 	spi_read_byte(&priv->spi_dev, 0xff, &rx[3]);
 	spi_read_byte(&priv->spi_dev, 0xff, &rx[4]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[5]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[6]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[7]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[8]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[9]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[10]);
 
 	gpio_set_value(priv->cs_gpio, 1);
 
-	printk("Read from pic: 0x%x 0x%x 0x%x 0x%x 0x%x\n", rx[0],rx[1],rx[2],rx[3],rx[4]);
-
-	if(copy_to_user(buf, rx, 5)) {
+	if(copy_to_user(buf, rx, 11)) {
 		return 0;
 	}
 
@@ -105,9 +117,6 @@ static ssize_t pic_read(struct file *file, char __user *buf, size_t count, loff_
 static ssize_t pic_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	struct pic_priv *priv = file->private_data;
-
-
-
 
 	return count;
 }
