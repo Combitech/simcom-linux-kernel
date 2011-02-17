@@ -127,7 +127,7 @@ static unsigned long simcom_pin_config[] = {
 
 	/* SSP1 */
 	GPIO23_SSP1_SCLK,
-	GPIO24_SSP1_SFRM,
+	//GPIO24_SSP1_SFRM,
 	GPIO25_SSP1_TXD,
 	GPIO26_SSP1_RXD,
 
