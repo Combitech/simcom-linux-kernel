@@ -17,14 +17,17 @@
 #include <linux/sched.h>
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
+#include <linux/gpio.h>
 #include <linux/pwm.h>
 #include <linux/platform_device.h>
 
 
+#define SERVO_ENABLE	90
+
 struct pwm_driver {
 	struct pwm_device *dev;
-	int duty_cycle;
-	int period;
+	unsigned int duty_cycle;
+	unsigned int period;
 };
 
 
@@ -42,9 +45,10 @@ static ssize_t pwm_period_show(struct device *dev, struct device_attribute *attr
 static ssize_t pwm_period_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct pwm_driver *drv = dev_get_drvdata(dev);
-	long period = 0;
+	unsigned long period = 0;
 
-	strict_strtol(buf, 0, &period);
+	strict_strtoul(buf, 0, &period);
+	printk("period: %d \n", period);
 
 	drv->period = period;
 
@@ -65,9 +69,10 @@ static ssize_t pwm_duty_cycle_show(struct device *dev, struct device_attribute *
 static ssize_t pwm_duty_cycle_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct pwm_driver *drv = dev_get_drvdata(dev);
-	long duty_cycle = 0;
+	unsigned long duty_cycle = 0;
 
-	strict_strtol(buf, 0, &duty_cycle);
+	strict_strtoul(buf, 0, &duty_cycle);
+	printk("duty: %d \n", duty_cycle);
 
 	drv->duty_cycle = duty_cycle;
 
@@ -87,6 +92,31 @@ static const struct attribute_group pwm_attr_group = {
 	.attrs = (struct attribute **) pwm_attrs,
 };
 
+
+
+static ssize_t enable_store(struct class *class, const char *buf, size_t len)
+{
+	long enable;
+	int	status;
+
+	status = strict_strtol(buf, 0, &enable);
+
+	if (status < 0)
+		return status;
+
+	if(enable > 0)
+		gpio_set_value(SERVO_ENABLE, 1);
+	else
+		gpio_set_value(SERVO_ENABLE, 0);
+
+	return len;
+}
+
+static ssize_t enable_show(struct class *class, char *buf)
+{
+	sprintf(buf, "%d\n", gpio_get_value(SERVO_ENABLE));
+	return strlen(buf);
+}
 
 
 
@@ -118,6 +148,7 @@ static ssize_t unexport_store(struct class *class, const char *buf, size_t len)
 static struct class_attribute pwm_class_attrs[] = {
 	__ATTR(export, 0200, NULL, export_store),
 	__ATTR(unexport, 0200, NULL, unexport_store),
+	__ATTR(enable, 0600, enable_show, enable_store),
 	__ATTR_NULL,
 };
 
@@ -147,8 +178,8 @@ int pwm_export(int pwm)
 	dev = device_create(&pwm_class, 0, MKDEV(0, 0), pwm_driv, "pwm%d", pwm);
 	status = sysfs_create_group(&dev->kobj, &pwm_attr_group);
 
-	pwm_driv->period = 1000000000;
-	pwm_driv->duty_cycle = 500000000;
+	pwm_driv->period 		= 3333333;
+	pwm_driv->duty_cycle 	= 1000000;
 
 	/* 1ms period, 50% duty cycle */
 	pwm_config(pwm_driv->dev, pwm_driv->duty_cycle, pwm_driv->period);
@@ -169,11 +200,16 @@ static int pwm_servo_init_module(void)
 	int status;
 
 	status = class_register(&pwm_class);
-	printk("Register PWM module\n");
+	if(status < 0)
+			return status;
 
-	if(status < 0) {
-		return status;
-	}
+
+	status = gpio_request(SERVO_ENABLE, "Servo enable");
+	if(status < 0)
+			return status;
+
+	gpio_direction_output(SERVO_ENABLE, 0);
+
 	return 0;
 }
 module_init(pwm_servo_init_module);
@@ -182,6 +218,8 @@ module_init(pwm_servo_init_module);
 static void pwm_servo_exit_module (void)
 {
 	class_unregister(&pwm_class);
+
+	gpio_free(SERVO_ENABLE);
 }
 module_exit(pwm_servo_exit_module);
 

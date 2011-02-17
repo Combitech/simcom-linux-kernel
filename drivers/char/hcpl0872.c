@@ -9,9 +9,6 @@
  *  the Free Software Foundation; version 2 of the License.
  *
  */
-
-
-
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/cdev.h>
@@ -31,7 +28,7 @@ MODULE_ALIAS("spi:hcpl0872");
 
 
 struct hcpl_priv {
-	struct ssp_dev *spi_dev;
+	struct ssp_dev spi_dev;
 	int cs_gpio;
 	struct cdev cdev;
 	struct device *device;
@@ -73,13 +70,13 @@ static ssize_t hcpl_read(struct file *file, char __user *buf, size_t count, loff
 
 	/* Read channel 0 */
 	gpio_set_value(priv->channel_gpio, 0);
-	spi_read_byte(priv->spi_dev, 0xff, &rx[0]);
-	spi_read_byte(priv->spi_dev, 0xff, &rx[1]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
 
 	/* Read channel 1 */
 	gpio_set_value(priv->channel_gpio, 1);
-	spi_read_byte(priv->spi_dev, 0xff, &rx[2]);
-	spi_read_byte(priv->spi_dev, 0xff, &rx[3]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[2]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[3]);
 
 	gpio_set_value(priv->cs_gpio, 1);
 
