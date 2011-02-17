@@ -57,8 +57,18 @@ static int spi_write_byte(struct adis16135_priv *priv, u8 data)
 
 static int adis16135_read_register(struct adis16135_priv *priv, int reg)
 {
-	printk("read register %04x\n", reg);
-	return 0;
+	unsigned char values[2];
+	gpio_set_value(priv->cs_gpio, 0);
+
+	spi_write_byte(priv, (reg&0xff00)>>8);
+	spi_write_byte(priv, (reg&0xff));
+
+	spi_read_byte(priv, 0xff, &values[0]);
+	spi_read_byte(priv, 0xff, &values[1]);
+
+	gpio_set_value(priv->cs_gpio, 1);
+
+	return (values[0]<<8) + values[1];
 }
 
 static int adis16135_write_register(struct adis16135_priv *priv, int reg, int val)
@@ -103,30 +113,46 @@ static ssize_t adis16135_read(struct file *file, char __user *buf, size_t count,
 	struct adis16135_priv *priv = file->private_data;
 	u8 values[6];
 	s16 val[3];
+	volatile int k;
 
 	gpio_set_value(priv->cs_gpio, 0);
-
-	spi_write_byte(priv, 0x06);
-	spi_write_byte(priv, 0x00);
-
-	spi_read_byte(priv, 0x04, &values[0]);
-	spi_read_byte(priv, 0x00, &values[1]);
-
-	spi_read_byte(priv, 0x02, &values[2]);
-	spi_read_byte(priv, 0x00, &values[3]);
-
-	spi_read_byte(priv, 0xff, &values[4]);
-	spi_read_byte(priv, 0xff, &values[5]);
-
+		spi_read_byte(priv, 0x06, &values[0]);
+		spi_read_byte(priv, 0x00, &values[0]);
 	gpio_set_value(priv->cs_gpio, 1);
+
+	for(k=0; k<1000; k++) {}
+
+	gpio_set_value(priv->cs_gpio, 0);
+		spi_read_byte(priv, 0x04, &values[0]);
+		spi_read_byte(priv, 0x00, &values[1]);
+	gpio_set_value(priv->cs_gpio, 1);
+
+	for(k=0; k<1000; k++) {}
+
+	gpio_set_value(priv->cs_gpio, 0);
+		spi_read_byte(priv, 0x02, &values[2]);
+		spi_read_byte(priv, 0x00, &values[3]);
+	gpio_set_value(priv->cs_gpio, 1);
+
+	for(k=0; k<1000; k++) {}
+
+	gpio_set_value(priv->cs_gpio, 0);
+		spi_read_byte(priv, 0xff, &values[4]);
+		spi_read_byte(priv, 0xff, &values[5]);
+	gpio_set_value(priv->cs_gpio, 1);
+
+
+
 
 	val[0] = (values[0]<<8) +  values[1];
 	val[1] = (values[2]<<8) +  values[3];
 	val[2] = (values[4]<<8) +  values[5];
 
-	printk("values: %i, %i, %i\n", val[0], val[1], val[2]);
+	//printk("values: %i, %i, %i\n", val[0], val[1], val[2]);
 
-	return 0;
+	copy_to_user(buf, values, 6);
+
+	return 6;
 }
 
 static ssize_t adis16135_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
@@ -145,6 +171,12 @@ static int adis16135_open(struct inode *inode, struct file *file)
 	struct adis16135_priv *priv = container_of(inode->i_cdev, struct adis16135_priv, cdev);
 
 	file->private_data = priv;
+
+	gpio_set_value(priv->cs_gpio, 0);
+	spi_write_byte(priv, 0xa8);
+	spi_write_byte(priv, 0x80);
+	gpio_set_value(priv->cs_gpio, 1);
+
 
 	return 0;
 }
@@ -201,13 +233,35 @@ static int __devinit adis16135_probe(struct platform_device *pdev)
 	priv->cs_gpio = r->start;
 	printk("Chipselect on gpio%i\n", priv->cs_gpio);
 
-	if(gpio_request(priv->cs_gpio, "mcp300x chipselect") < 0) {
+	if(gpio_request(priv->cs_gpio, "adis16135 chipselect") < 0) {
 		printk("Could not request chipselect pin for mcp300x\n");
 		goto exit_free;
 	}
 
 	gpio_direction_output(priv->cs_gpio, 1);
 	gpio_set_value(priv->cs_gpio, 1);
+
+	gpio_request(40, "1");
+	gpio_direction_output(40, 1);
+	gpio_request(37, "2");
+	gpio_direction_output(37, 1);
+	gpio_request(107, "3");
+	gpio_direction_output(107, 1);
+	gpio_request(52, "4");
+	gpio_direction_output(52, 1);
+	gpio_request(81, "5");
+	gpio_direction_output(81, 1);
+	gpio_request(106, "6");
+	gpio_direction_output(106, 1);
+	gpio_request(9, "7");
+	gpio_direction_output(9, 1);
+	gpio_request(115, "8");
+	gpio_direction_output(115, 1);
+	gpio_request(101, "9");
+	gpio_direction_output(101, 1);
+
+
+	printk("serial number is %i\n", adis16135_read_register(priv, 0x3a00));
 
 
 
