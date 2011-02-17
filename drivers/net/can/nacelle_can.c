@@ -633,16 +633,6 @@ static int __devinit nacelle_probe(struct platform_device *pdev)
 	gpio_set_value(priv->reset_gpio, 1);
 
 
-	if(gpio_request(104, "nacelle_reset") < 0) {
-			printk("Could not request reset pin for nacelle\n");
-			goto exit_free;
-		}
-
-		gpio_direction_output(104, 0);
-		gpio_set_value(104, 0);
-
-
-
 	if(gpio_request(priv->cs_gpio, "nacelle_cs") < 0) {
 		printk("Could not request chip select pin for nacelle\n");
 		goto exit_free;
