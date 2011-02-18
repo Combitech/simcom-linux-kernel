@@ -123,6 +123,7 @@ obj-$(CONFIG_PIC_PWM)		+= pic_pwm.o
 obj-$(CONFIG_AD77XX)		+= ad77xx.o
 obj-$(CONFIG_MCP300X) 		+= mcp300x.o
 obj-$(CONFIG_ADIS16135) 	+= adis16135.o
+obj-$(CONFIG_NACELLE_SENSORS) 	+= nacelle_sensors.o
 
 # Files generated that shall be removed upon make clean
 clean-files := consolemap_deftbl.c defkeymap.c

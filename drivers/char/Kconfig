@@ -351,6 +351,12 @@ config ADXL34X
 	depends on SPI
 	help
 	  Select this if you want a driver for Analog Devices ADXL345/ADXL346
+	  
+config NACELLE_SENSORS
+	tristate "Nacelle sensors"
+	depends on SPI
+	help
+	  Select this if you want a driver for Nacelle sensors
 
 config MCP300X
 	tristate "Microchip MCP300x A/D Converters"

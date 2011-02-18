@@ -24,6 +24,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/physmap.h>
+#include <linux/gpio.h>
 
 #include <linux/dm9000.h>
 #include <linux/i2c/pca953x.h>
@@ -55,9 +56,13 @@
 #define SIMCOM_ETHIRQ		IRQ_GPIO(20)
 #define NACELLE_MMCDETECT	53
 
-#define MCP3002_CS			101
+#define MCP3002_0_CS		101
+#define MCP3002_1_CS		115
+#define MCP3008_CS			37
 #define PIC16_CS			52
 #define ADXL34X_CS			106
+#define AD7799_CS			81
+#define ADIS16135_CS		9
 #define HCPL_CS				40
 #define HCPL_CHN			107
 
@@ -265,127 +270,6 @@ static struct platform_device simcom_nacelle_can_device = {
 
 
 /****************************************************************/
-/*                            MCP3002   					    */
-/****************************************************************/
-
-/*
-static struct resource simcom_mcp3002_resource[] = {
-	[0] = {
-		.start = MCP3002_CS,
-		.end   = MCP3002_CS,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_mcp3002_device = {
-	.name = "mcp3001",
-	.id	 = 0,
-	.dev = {
-		.platform_data	= &simcom_nacelle_pdata,
-	},
-	.num_resources = 1,
-	.resource = simcom_mcp3002_resource,
-};
-*/
-
-static struct resource simcom_mcp3002_resource[] = {
-	[0] = {
-		.start = 37,
-		.end   = 37,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_mcp3002_device = {
-	.name = "mcp3008",
-	.id	 = 0,
-	.num_resources = 1,
-	.resource = simcom_mcp3002_resource,
-};
-
-
-/****************************************************************/
-/*                            AD7799   					    	*/
-/****************************************************************/
-
-static struct resource simcom_ad7799_resource[] = {
-	[0] = {
-		.start = 81,
-		.end   = 81,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_ad7799_device = {
-	.name = "ad7799",
-	.id	 = 0,
-	.num_resources = 1,
-	.resource = simcom_ad7799_resource,
-};
-
-
-/****************************************************************/
-/*                          ADIS16135					    	*/
-/****************************************************************/
-
-static struct resource simcom_adis16135_resource[] = {
-	[0] = {
-		.start = 9,
-		.end   = 9,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_adis16135_device = {
-	.name = "adis16135",
-	.id	 = 0,
-	.num_resources = 1,
-	.resource = simcom_adis16135_resource,
-};
-
-
-/****************************************************************/
-/*                          PIC16					    	*/
-/****************************************************************/
-
-static struct resource simcom_pic16_resource[] = {
-	[0] = {
-		.start = PIC16_CS,
-		.end   = PIC16_CS,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_pic16_device = {
-	.name = "pic_pwm",
-	.id	 = 0,
-	.num_resources = 1,
-	.resource = simcom_pic16_resource,
-};
-
-
-
-/****************************************************************/
-/*                          ADXL346					    		*/
-/****************************************************************/
-
-static struct resource simcom_adxl_resource[] = {
-	[0] = {
-		.start = ADXL34X_CS,
-		.end   = ADXL34X_CS,
-		.flags = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device simcom_adxl_device = {
-	.name = "adxl34x",
-	.id	 = 0,
-	.num_resources = 1,
-	.resource = simcom_adxl_resource,
-};
-
-
-/****************************************************************/
 /*                          HCPL-0872					    	*/
 /****************************************************************/
 
@@ -410,6 +294,57 @@ static struct platform_device simcom_hcpl_device = {
 };
 
 
+/****************************************************************/
+/*                          nacelle sensors 			    	*/
+/****************************************************************/
+
+static struct resource simcom_nacelle_sensors_resource[] = {
+	[0] = {
+		.start = ADXL34X_CS,
+		.end   = ADXL34X_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = ADIS16135_CS,
+		.end   = ADIS16135_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = AD7799_CS,
+		.end   = AD7799_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = MCP3008_CS,
+		.end   = MCP3008_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = MCP3002_0_CS,
+		.end   = MCP3002_0_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = MCP3002_1_CS,
+		.end   = MCP3002_1_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = PIC16_CS,
+		.end   = PIC16_CS,
+		.flags = IORESOURCE_IO,
+	},
+};
+
+
+static struct platform_device simcom_nacelle_sensors_device = {
+	.name = "nacelle_sensors",
+	.id	 = 0,
+	.num_resources = 7,
+	.resource = simcom_nacelle_sensors_resource,
+};
+
+
 
 
 
@@ -427,6 +362,14 @@ static struct pxamci_platform_data simcom_mci_platform_data = {
 
 static void __init simcom_init(void)
 {
+
+	gpio_request(40, "1");
+	gpio_direction_output(40, 1);
+	gpio_request(107, "3");
+	gpio_direction_output(107, 1);
+
+
+
 	/* Initialize NAND */
 	platform_device_register(&simcom_nand_device);
 
@@ -436,18 +379,10 @@ static void __init simcom_init(void)
 	/* Initialize CAN driver */
 	platform_device_register(&simcom_nacelle_can_device);
 
-	/* Initialize mcp3002 driver */
-	//platform_device_register(&simcom_mcp3002_device);
+	/* Initialize sensor driver */
+	platform_device_register(&simcom_nacelle_sensors_device);
 
-	//platform_device_register(&simcom_ad7799_device);
-
-	//platform_device_register(&simcom_adis16135_device);
-
-	//platform_device_register(&simcom_pic16_device);
-
-	//platform_device_register(&simcom_adxl_device);
-
-	platform_device_register(&simcom_hcpl_device);
+	//platform_device_register(&simcom_hcpl_device);
 
 	/* Initialize card interface */
 	pxa_set_mci_info(&simcom_mci_platform_data);
