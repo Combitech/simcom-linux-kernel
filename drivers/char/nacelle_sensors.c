@@ -22,6 +22,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/platform_device.h>
+#include <linux/delay.h>
 
 
 MODULE_DESCRIPTION("Analog Devices adxl345/adxl346 3-axis Digital Accelerometer");
@@ -329,7 +330,9 @@ static int spi_read_byte(struct ssp_dev *dev, u8 output, u8 *data)
 
 static int spi_write_byte(struct ssp_dev *dev, u8 data)
 {
+	u32 d;
 	ssp_write_word(dev, data);
+	ssp_read_word(dev, &d);
 	ssp_flush(dev);
 	return 0;
 }
@@ -404,24 +407,40 @@ static int mcp300x_read(struct nacelle_sensors_priv *priv, struct nacelle_sensor
 	u8 i;
 	u8 rx[3];
 
+	ssp_disable(&priv->spi_dev);
+
+	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
+			SSCR1_TxTresh(1) | SSCR1_RxTresh(1) | SSCR1_SPO | SSCR1_SPH,
+			0,
+			SSCR0_SCR & SSCR0_SerClkDiv(12));
+
+
+	ssp_enable(&priv->spi_dev);
+
 
 	/* read from cmp3008 */
 	for(i=0; i<8; i++) {
 		gpio_set_value(priv->cs_mcp3008, 0);
+
 			spi_write_byte(&priv->spi_dev, 0x01);
 			spi_read_byte(&priv->spi_dev, 0x80 | (i<<4), &rx[0]);
 			spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
 			data->mcp_3008[i] = ((rx[0]&0x3)<<8) | rx[1];
+
+
 		gpio_set_value(priv->cs_mcp3008, 1);
+
 	}
 
 	/* read from mcp3001 0 */
+
 	gpio_set_value(priv->cs_mcp3001_0, 0);
 		spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
 		spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
 		data->mcp_3001_0 = ((rx[0]&0x1f)<<5) | (((rx[1]&0xf8)>>3)&0x1f);
 	gpio_set_value(priv->cs_mcp3001_0, 1);
 
+	ndelay(300);
 	/* read from mcp3001 0 */
 	gpio_set_value(priv->cs_mcp3001_1, 0);
 		spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);

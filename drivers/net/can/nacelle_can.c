@@ -147,7 +147,9 @@ static int nacelle_read_byte(struct nacelle_priv *priv, unsigned char *b)
 static int nacelle_write_byte(struct nacelle_priv *priv, unsigned char b)
 {
 	int ret;
+	int data;
 	ret = ssp_write_word(&priv->spi_dev, b);
+	ssp_read_word(&priv->spi_dev, &data);
 	if(ssp_flush(&priv->spi_dev) == -ETIMEDOUT) { printk("Timeout\n"); }
 	return ret;
 }
@@ -184,12 +186,15 @@ static int nacelle_read_buffer(struct nacelle_priv *priv, struct can_frame *cf, 
 	gpio_set_value(priv->cs_gpio, 0);
 	nacelle_write_byte(priv, tx[0]);
 
+
 	for(i=0; i<13; i++) {
 		nacelle_read_byte(priv, &rx[i]);
 	}
 
 	//spi_write_then_read(priv->spi_dev, tx, 1, rx, 13);
 	gpio_set_value(priv->cs_gpio, 1);
+
+
 
 	cf->can_id = (rx[0]<<3) | ((rx[1]&0xe0)>>5);
 	cf->can_dlc = rx[4];

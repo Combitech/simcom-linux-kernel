@@ -48,7 +48,6 @@ static ssize_t pwm_period_store(struct device *dev, struct device_attribute *att
 	unsigned long period = 0;
 
 	strict_strtoul(buf, 0, &period);
-	printk("period: %d \n", period);
 
 	drv->period = period;
 
@@ -72,7 +71,6 @@ static ssize_t pwm_duty_cycle_store(struct device *dev, struct device_attribute 
 	unsigned long duty_cycle = 0;
 
 	strict_strtoul(buf, 0, &duty_cycle);
-	printk("duty: %d \n", duty_cycle);
 
 	drv->duty_cycle = duty_cycle;
 

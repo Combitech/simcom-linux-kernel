@@ -132,7 +132,6 @@ static unsigned long simcom_pin_config[] = {
 
 	/* SSP1 */
 	GPIO23_SSP1_SCLK,
-	//GPIO24_SSP1_SFRM,
 	GPIO25_SSP1_TXD,
 	GPIO26_SSP1_RXD,
 
@@ -381,8 +380,6 @@ static void __init simcom_init(void)
 
 	/* Initialize sensor driver */
 	platform_device_register(&simcom_nacelle_sensors_device);
-
-	//platform_device_register(&simcom_hcpl_device);
 
 	/* Initialize card interface */
 	pxa_set_mci_info(&simcom_mci_platform_data);
