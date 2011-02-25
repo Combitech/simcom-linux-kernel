@@ -281,6 +281,9 @@ enum { 	AD77XX_AIN1_CHAN = 0,
 #define READ_MULT		0xc0
 
 
+
+
+
 struct nacelle_sensors_priv {
 	struct ssp_dev spi_dev;
 	int cs_adxl;
@@ -387,7 +390,7 @@ static int pic_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors_da
 
 	data->pwm_value[0] = (rx[1]<<8) + rx[2];
 	data->pwm_freq[0] = (rx[3]<<8) + rx[4];
-	data->pwm_value[0] = (rx[5]<<8) + rx[6];
+	data->pwm_value[1] = (rx[5]<<8) + rx[6];
 	data->pwm_freq[1] = (rx[7]<<8) + rx[8];
 	data->pump_counter = (rx[9]<<8) + rx[10];
 
@@ -701,8 +704,8 @@ static void ad77xx_init(struct nacelle_sensors_priv *priv)
 			0,					/* No burn out */
 			1,					/* Unipolar */
 			AD77XX_1_GAIN,		/* 1 Gain */
-			0,					/* No reference detection */
-			1,					/* Buffered */
+			1,					/* No reference detection */
+			0,					/* Buffered */
 			AD77XX_AIN1_CHAN	/* AIN1 Channel */
 		);
 
@@ -724,7 +727,7 @@ static int ad77xx_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors
 
 	gpio_set_value(priv->cs_ad7799, 0);
 
-		ad77xx_request_data(priv, 1);
+		ad77xx_request_data(priv, 0);
 
 		while(gpio_get_value(41));
 
@@ -924,7 +927,6 @@ static ssize_t nacelle_sensors_write(struct file *file, const char __user *buf, 
 {
 	struct nacelle_sensors_priv *priv = file->private_data;
 
-
 	return count;
 }
 
@@ -954,9 +956,14 @@ int nacelle_sensors_ioctl(struct inode *inode, struct file *file, unsigned int c
 
 static int nacelle_sensors_open(struct inode *inode, struct file *file)
 {
-	struct adxl34x_priv *priv = container_of(inode->i_cdev, struct nacelle_sensors_priv, cdev);
+	struct nacelle_sensors_priv *priv = container_of(inode->i_cdev, struct nacelle_sensors_priv, cdev);
 
 	file->private_data = priv;
+
+	gpio_set_value(priv->cs_adis16135, 0);
+		spi_write_byte(&priv->spi_dev, 0xa8);
+		spi_write_byte(&priv->spi_dev, 0x80);
+	gpio_set_value(priv->cs_adis16135, 1);
 
 	return 0;
 }
@@ -1092,6 +1099,7 @@ static int __devinit nacelle_sensors_probe(struct platform_device *pdev)
 	}
 
 	gpio_direction_output(priv->cs_pic, 1);
+
 
 	/* Initialize all sensors */
 	adxl_init(priv);

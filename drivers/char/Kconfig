@@ -357,6 +357,11 @@ config NACELLE_SENSORS
 	depends on SPI
 	help
 	  Select this if you want a driver for Nacelle sensors
+	  
+config NACELLE_SOLENOID
+	tristate "Nacelle solenoid control"
+	help
+	  Select this if you want to control solenoid signals on Nacelle
 
 config MCP300X
 	tristate "Microchip MCP300x A/D Converters"
