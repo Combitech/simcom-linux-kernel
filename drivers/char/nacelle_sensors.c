@@ -699,7 +699,7 @@ static void ad77xx_init(struct nacelle_sensors_priv *priv)
 
 		ad77xx_reset(priv);
 		ad77xx_read_id(priv);
-		ad77xx_set_mode(priv, AD77XX_CONTINUOUS_CONVERSION_MODE, 0, AD77XX_470_HZ);
+		ad77xx_set_mode(priv, AD77XX_CONTINUOUS_CONVERSION_MODE, 1, AD77XX_470_HZ);
 		ad77xx_write_config(priv,
 			0,					/* No burn out */
 			1,					/* Unipolar */
