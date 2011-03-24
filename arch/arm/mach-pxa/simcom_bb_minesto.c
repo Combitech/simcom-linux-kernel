@@ -333,13 +333,23 @@ static struct resource simcom_nacelle_sensors_resource[] = {
 		.end   = PIC16_CS,
 		.flags = IORESOURCE_IO,
 	},
+	{
+		.start = HCPL_CS,
+		.end   = HCPL_CS,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.start = HCPL_CHN,
+		.end   = HCPL_CHN,
+		.flags = IORESOURCE_IO,
+	},
 };
 
 
 static struct platform_device simcom_nacelle_sensors_device = {
 	.name = "nacelle_sensors",
 	.id	 = 0,
-	.num_resources = 7,
+	.num_resources = 9,
 	.resource = simcom_nacelle_sensors_resource,
 };
 
@@ -361,14 +371,6 @@ static struct pxamci_platform_data simcom_mci_platform_data = {
 
 static void __init simcom_init(void)
 {
-
-	gpio_request(40, "1");
-	gpio_direction_output(40, 1);
-	gpio_request(107, "3");
-	gpio_direction_output(107, 1);
-
-
-
 	/* Initialize NAND */
 	platform_device_register(&simcom_nand_device);
 

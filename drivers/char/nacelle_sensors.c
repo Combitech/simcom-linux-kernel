@@ -293,6 +293,8 @@ struct nacelle_sensors_priv {
 	int cs_adis16135;
 	int cs_ad7799;
 	int cs_pic;
+	int cs_hcpl;
+	int cs_hcpl_ch;
 	int type;
 	struct cdev cdev;
 	struct device *device;
@@ -313,6 +315,8 @@ struct nacelle_sensors_data {
 	short pwm_value[2];
 	short pwm_freq[2];
 	short pump_counter;
+	unsigned short hcpl_ch0;
+	unsigned short hcpl_ch1;
 };
 
 
@@ -393,6 +397,60 @@ static int pic_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors_da
 	data->pwm_value[1] = (rx[5]<<8) + rx[6];
 	data->pwm_freq[1] = (rx[7]<<8) + rx[8];
 	data->pump_counter = (rx[9]<<8) + rx[10];
+
+	return 0;
+}
+
+
+/****************************************************************************/
+/*                                 HCPL										*/
+/****************************************************************************/
+
+
+static int hcpl_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors_data *data)
+{
+
+	u8 rx[4];
+	ssp_disable(&priv->spi_dev);
+
+	ssp_config(&priv->spi_dev, 	SSCR0_DataSize(8) | SSCR0_Motorola,
+			SSCR1_TxTresh(1) | SSCR1_RxTresh(1) | SSCR1_SPO | SSCR1_SPH,
+			0,
+			SSCR0_SCR & SSCR0_SerClkDiv(128));
+
+	ssp_enable(&priv->spi_dev);
+
+	/* READ CHANNEL 0 */
+	gpio_set_value(priv->cs_hcpl_ch,0);
+	ndelay(20);
+	gpio_set_value(priv->cs_hcpl,0);
+
+	while(!gpio_get_value(41));
+
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[0]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[1]);
+
+	gpio_set_value(priv->cs_hcpl,1);
+
+;
+	/* READ CHANNEL 1 */
+
+	gpio_set_value(priv->cs_hcpl_ch,1);
+	ndelay(20);
+	gpio_set_value(priv->cs_hcpl,0);
+
+	while(!gpio_get_value(41));
+
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[2]);
+	spi_read_byte(&priv->spi_dev, 0xff, &rx[3]);
+
+	gpio_set_value(priv->cs_hcpl,1);
+
+	/* EXPORT */
+	data->hcpl_ch0 = (rx[0] << 8) | rx[1];
+	data->hcpl_ch1 = (rx[2] << 8) | rx[3];
+
+	printk("Read Values: 0x%02x 0x%02x 0x%02x 0x%02x\n", rx[0], rx[1],rx[2],rx[3]);
 
 	return 0;
 }
@@ -915,6 +973,7 @@ static ssize_t nacelle_sensors_read(struct file *file, char __user *buf, size_t 
 	ad77xx_read(priv, &data);
 	mcp300x_read(priv, &data);
 	pic_read(priv, &data);
+	hcpl_read(priv, &data);
 
 	if(copy_to_user(buf, &data, sizeof(struct nacelle_sensors_data))) {
 		return 0;
@@ -1099,6 +1158,29 @@ static int __devinit nacelle_sensors_probe(struct platform_device *pdev)
 	}
 
 	gpio_direction_output(priv->cs_pic, 1);
+
+
+	/* Get chip select for HCPL*/
+	r = platform_get_resource(pdev, IORESOURCE_IO, 7);
+	priv->cs_hcpl = r->start;
+
+	if(gpio_request(priv->cs_hcpl, "HCPL chipselect") < 0) {
+		printk("Could not request chipselect pin for HCPL\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->cs_hcpl, 1);
+
+
+	r = platform_get_resource(pdev, IORESOURCE_IO, 8);
+	priv->cs_hcpl_ch = r->start;
+
+	if(gpio_request(priv->cs_hcpl_ch, "HCPL channel select") < 0) {
+		printk("Could not request channel select pin for HCPL\n");
+		goto exit_free;
+	}
+
+	gpio_direction_output(priv->cs_hcpl_ch, 1);
 
 
 	/* Initialize all sensors */
