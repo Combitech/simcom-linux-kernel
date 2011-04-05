@@ -314,7 +314,7 @@ struct nacelle_sensors_data {
 	int ad7799;
 	short pwm_value[2];
 	short pwm_freq[2];
-	short pump_counter;
+	short generator_hz;
 	unsigned short hcpl_ch0;
 	unsigned short hcpl_ch1;
 };
@@ -396,7 +396,7 @@ static int pic_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors_da
 	data->pwm_freq[0] = (rx[3]<<8) + rx[4];
 	data->pwm_value[1] = (rx[5]<<8) + rx[6];
 	data->pwm_freq[1] = (rx[7]<<8) + rx[8];
-	data->pump_counter = (rx[9]<<8) + rx[10];
+	data->generator_hz = (rx[9]<<8) + rx[10];
 
 	return 0;
 }
@@ -450,7 +450,7 @@ static int hcpl_read(struct nacelle_sensors_priv *priv, struct nacelle_sensors_d
 	data->hcpl_ch0 = (rx[0] << 8) | rx[1];
 	data->hcpl_ch1 = (rx[2] << 8) | rx[3];
 
-	printk("Read Values: 0x%02x 0x%02x 0x%02x 0x%02x\n", rx[0], rx[1],rx[2],rx[3]);
+	//printk("Read Values: 0x%02x 0x%02x 0x%02x 0x%02x\n", rx[0], rx[1],rx[2],rx[3]);
 
 	return 0;
 }
