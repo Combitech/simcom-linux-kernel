@@ -101,6 +101,17 @@ static inline void receive_chars(struct uart_pxa_port *up, int *status)
 	int max_count = 256;
 
 	do {
+
+		/*
+		 * ERRATA E20 Work Around
+		 * Step 2
+		 *
+		 * Disable the Reciever Time Out Interrupt via IER[RTOEI]
+		 */
+		up->ier &= ~UART_IER_RTOIE;
+		serial_out(up, UART_IER, up->ier);
+
+
 		ch = serial_in(up, UART_RX);
 		flag = TTY_NORMAL;
 		up->port.icount.rx++;
@@ -157,6 +168,16 @@ static inline void receive_chars(struct uart_pxa_port *up, int *status)
 		*status = serial_in(up, UART_LSR);
 	} while ((*status & UART_LSR_DR) && (max_count-- > 0));
 	tty_flip_buffer_push(tty);
+
+
+	/*
+	 * ERRATA E20 Work Around
+	 * Step 6
+	 *
+	 * No more data in FIFO: Re-enable RTO interrupt via IER[RTOIE]
+	 */
+	up->ier |= UART_IER_RTOIE;
+	serial_out(up, UART_IER, up->ier);
 }
 
 static void transmit_chars(struct uart_pxa_port *up)
