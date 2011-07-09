@@ -149,6 +149,14 @@ config REGULATOR_TPS65023
 	  three step-down converters and two general-purpose LDO voltage regulators.
 	  It supports TI's software based Class-2 SmartReflex implementation.
 
+config REGULATOR_TPS65020
+	tristate "TI TPS65020 Power regulators"
+	depends on I2C
+	help
+	  This driver supports TPS65020 voltage regulator chips. TPS65020 provides
+	  three step-down converters and two general-purpose LDO voltage regulators.
+	  It supports TI's software based Class-2 SmartReflex implementation.
+
 config REGULATOR_TPS6507X
 	tristate "TI TPS6507X Power regulators"
 	depends on I2C

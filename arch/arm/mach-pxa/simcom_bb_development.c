@@ -27,6 +27,9 @@
 #include <linux/dm9000.h>
 #include <linux/i2c/pca953x.h>
 
+#include <linux/regulator/machine.h>
+#include <linux/regulator/userspace-consumer.h>
+
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
 #include <asm/mach/map.h>
@@ -38,7 +41,10 @@
 #include <mach/mmc.h>
 #include <mach/bitfield.h>
 
+#include <linux/gpio.h>
+
 #include <plat/i2c.h>
+#include <linux/i2c-dev.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -342,14 +348,110 @@ static void __init simcom_init_baseboard(void)
 static inline void simcom_init_baseboard(void) {}
 #endif // DEV BB
 
+/* CONSUMERS */
+#define simcom_user_consumer(_name, _id)	\
+static struct regulator_bulk_data simcom_##_name##_consumer_supply = {	\
+	.supply		= #_name "_vcc",										\
+};																		\
+static struct regulator_userspace_consumer_data			\
+		simcom_##_name##_consumer_data = {				\
+	.name		= #_name "_vcc",						\
+	.num_supplies	= 1,								\
+	.supplies	= &simcom_##_name##_consumer_supply,	\
+};														\
+static struct platform_device simcom_##_name##_consumer = {	\
+	.name = "reg-userspace-consumer",						\
+	.id = _id,												\
+	.dev = {												\
+		.platform_data = &simcom_##_name##_consumer_data,	\
+	},														\
+}
+
+simcom_user_consumer(VDCDC1,0);
+simcom_user_consumer(VDCDC2,1);
+simcom_user_consumer(VDCDC3,2);
+
+
+static struct platform_device *simcom_consumers[] = {
+		&simcom_VDCDC1_consumer,
+		&simcom_VDCDC2_consumer,
+		&simcom_VDCDC3_consumer,
+};
+
+
+static int __init simcom_init_consumers(void)
+{
+	//regulator_has_full_constraints();
+	return platform_add_devices(simcom_consumers, ARRAY_SIZE(simcom_consumers));
+}
+/* CONSUMERS */
+
+/* REGULATOR */
+#define simcom_regulator(_name, _min, _max, _boot_on) 	\
+{											\
+	.constraints = {						\
+		.min_uV = (_min)*1000,				\
+		.max_uV = (_max)*1000,				\
+		.valid_ops_mask = (REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS),\
+		.boot_on = _boot_on,				\
+	},										\
+	.num_consumer_supplies = ARRAY_SIZE(simcom_##_name##_consumers),	\
+	.consumer_supplies = simcom_##_name##_consumers,					\
+}
+
+#define simcom_supply_single(_name)										\
+static struct regulator_consumer_supply simcom_##_name##_consumers[] = {	\
+	{	.supply = #_name "_vcc",	},									\
+}
+
+simcom_supply_single(VDCDC1);
+simcom_supply_single(VDCDC2);
+simcom_supply_single(VDCDC3);
+simcom_supply_single(LDO1);
+simcom_supply_single(LDO2);
+
+
+
+static struct regulator_init_data simcom_regulators[] = {
+	simcom_regulator(VDCDC1, 3300, 3300, 1),
+	simcom_regulator(VDCDC2, 1800, 1800, 1),
+	simcom_regulator(VDCDC3, 800, 1600, 1),
+	simcom_regulator(LDO1, 1000, 3300, 1),
+	simcom_regulator(LDO2, 1000, 3300, 1),
+};
+
+
+/* REGULATOR */
+
+/* POWER I2C */
+static struct i2c_board_info simcom_bb_dev_pwr_i2c_info[] = {
+	{	/* PMIC */
+		.type			= "tps65020",
+		.addr			= 0x48,
+		.platform_data	= &simcom_regulators,
+	},
+};
+
+
+
+static void __init simcom_init_pwr_i2c(void)
+{
+	pxa27x_set_i2c_power_info(NULL);
+	i2c_register_board_info(1, ARRAY_AND_SIZE(simcom_bb_dev_pwr_i2c_info));
+}
+
+/* POWER I2C */
+
 
 static void __init simcom_init(void)
 {
+	simcom_init_pwr_i2c();
 	simcom_init_nand();
 	simcom_init_dm9000();
 	simcom_init_ohci();
 	simcom_init_display();
 	simcom_init_baseboard();
+	simcom_init_consumers();
 
 	pxa2xx_mfp_config(ARRAY_AND_SIZE(simcom_pin_config));
 }
