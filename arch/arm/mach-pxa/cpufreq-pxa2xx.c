@@ -193,9 +193,9 @@ static int pxa_cpufreq_change_voltage(pxa_freqs_t *pxa_freq)
 
 static __init void pxa_cpufreq_init_voltages(void)
 {
-	vcc_core = regulator_get(NULL, "vcc_core");
+	vcc_core = regulator_get(NULL, "VDCDC3_vcc");
 	if (IS_ERR(vcc_core)) {
-		pr_info("cpufreq: Didn't find vcc_core regulator\n");
+		pr_info("cpufreq: Didn't find VDCDC3_vcc regulator\n");
 		vcc_core = NULL;
 	} else {
 		pr_info("cpufreq: Found vcc_core regulator\n");
@@ -231,7 +231,7 @@ static void find_freq_tables(struct cpufreq_frequency_table **freq_table,
 static void pxa27x_guess_max_freq(void)
 {
 	if (!pxa27x_maxfreq) {
-		pxa27x_maxfreq = 416000;
+		pxa27x_maxfreq = 520000;
 		printk(KERN_INFO "PXA CPU 27x max frequency not defined "
 		       "(pxa27x_maxfreq), assuming pxa271 with %dkHz maxfreq\n",
 		       pxa27x_maxfreq);
